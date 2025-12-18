@@ -1,16 +1,29 @@
 # Claude Code Usage CLI
 
-A clean command-line tool to display your Claude Code subscription usage limits, similar to [claude.ai/settings/usage](https://claude.ai/settings/usage).
-
-![Example output](https://img.shields.io/badge/Python-3.8+-blue.svg)
+A command-line tool to monitor your Claude Code subscription usage, similar to [claude.ai/settings/usage](https://claude.ai/settings/usage).
 
 ## Features
 
-- Displays current session (5-hour) and weekly usage limits
-- Visual progress bars with color-coded usage levels
-- Cross-platform support (Linux, macOS, Windows)
-- JSON output mode for scripting
-- No external dependencies (uses Python stdlib only)
+- **Real-time usage** - Session (5h) and weekly limits with progress bars
+- **Analytics** - Historical trends, sparklines, peak usage patterns
+- **Cost analysis** - Compare API costs vs subscription value (Pro/Max)
+- **Auto-collection** - Systemd timer for hourly usage tracking
+- **Admin API support** - Organization-level usage data (optional)
+- **Cross-platform** - Linux, macOS, Windows
+- **Zero dependencies** - Python stdlib only
+
+## Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/YOUR_REPO/claude-code-usage-cli.git
+ln -s $(pwd)/claude-code-usage-cli/claude-usage ~/.local/bin/
+
+# Run
+claude-usage           # Current usage
+claude-usage -a        # With analytics
+claude-usage --setup   # Configure auto-collection
+```
 
 ## Example Output
 
@@ -27,151 +40,76 @@ Resets Tue 9:59 AM
 
 Sonnet only          ░░░░░░░░░░░░░░░░░░░░░░░░░  1% used
 Resets Mon 6:59 PM
-
-Last updated: just now
 ```
-
-## Installation
-
-### Quick Install (Linux/macOS)
-
-```bash
-# Download and install
-curl -o ~/.local/bin/claude-usage https://raw.githubusercontent.com/YOUR_REPO/claude-code-usage-cli/main/claude-usage
-chmod +x ~/.local/bin/claude-usage
-
-# Or clone and symlink
-git clone https://github.com/YOUR_REPO/claude-code-usage-cli.git
-ln -s $(pwd)/claude-code-usage-cli/claude-usage ~/.local/bin/claude-usage
-```
-
-### Manual Install
-
-1. Download `claude-usage` to a directory in your PATH
-2. Make it executable: `chmod +x claude-usage`
-3. Run: `claude-usage`
-
-## Prerequisites
-
-- **Python 3.8+** (no external packages needed)
-- **Claude Code** installed and authenticated
-  - The tool reads credentials from `~/.claude/.credentials.json` (Linux/Windows)
-  - On macOS, it can also read from the macOS Keychain
 
 ## Usage
 
-```bash
-# Display formatted usage
-claude-usage
+| Command | Description |
+|---------|-------------|
+| `claude-usage` | Show current usage |
+| `claude-usage -a` | Show analytics with trends |
+| `claude-usage -j` | Output raw JSON |
+| `claude-usage --setup` | Run setup wizard |
+| `claude-usage --config` | Show configuration |
+| `claude-usage --no-color` | Disable colors (for piping) |
+| `claude-usage --no-record` | Don't save to history |
 
-# Output raw JSON (for scripting)
-claude-usage --json
+## Setup Wizard
 
-# Disable colors (for piping)
-claude-usage --no-color
-```
+First run prompts for optional configuration:
 
-### Shell Integration
+1. **Admin API Key** - For organization usage data (requires admin role)
+2. **Auto-collection** - Hourly systemd timer for analytics
+3. **Subscription plan** - Pro ($20), Max 5x ($100), or Max 20x ($200)
 
-Add to your shell profile (`.bashrc`, `.zshrc`, etc.):
+Re-run anytime with `claude-usage --setup`.
 
-```bash
-# Alias for quick access
-alias cu='claude-usage'
+## Analytics Mode
 
-# Show usage on terminal startup (optional)
-claude-usage 2>/dev/null || true
-```
+With `-a` flag, shows:
 
-### Statusline Integration
+- **Sparkline trends** - 24h and 7d usage patterns
+- **Peak analysis** - Busiest days/hours
+- **Usage prediction** - Estimated time to limits
+- **Cost comparison** - API equivalent vs subscription value
+- **Recommendations** - Optimal plan based on usage
 
-For tmux statusline:
+## Requirements
 
-```bash
-# In ~/.tmux.conf
-set -g status-right "#(claude-usage --json 2>/dev/null | python3 -c \"import sys,json; d=json.load(sys.stdin); print(f\\\"CC: {int(d.get('five_hour',{}).get('utilization',0))}%\\\")\" 2>/dev/null || echo 'CC: --')"
-```
+- **Python 3.8+**
+- **Claude Code** authenticated (`claude login`)
 
-## API Details
+Credentials read from:
+- `~/.claude/.credentials.json` (Linux/Windows)
+- macOS Keychain (macOS)
 
-The tool uses the Anthropic OAuth API:
+## Data Storage
 
+| File | Purpose |
+|------|---------|
+| `~/.claude/.usage_config.json` | Configuration |
+| `~/.claude/.usage_history.json` | Usage history (180 days) |
+
+## API Reference
+
+### OAuth API (default)
 - **Endpoint**: `https://api.anthropic.com/api/oauth/usage`
-- **Authentication**: Bearer token from Claude Code credentials
-- **Required Header**: `anthropic-beta: oauth-2025-04-20`
+- **Auth**: Bearer token from Claude Code credentials
+- **Data**: Current session and weekly utilization
 
-### Response Structure
-
-```json
-{
-  "five_hour": {
-    "utilization": 34.0,
-    "resets_at": "2025-12-18T16:00:00+00:00"
-  },
-  "seven_day": {
-    "utilization": 9.0,
-    "resets_at": "2025-12-23T09:00:00+00:00"
-  },
-  "seven_day_sonnet": {
-    "utilization": 1.0,
-    "resets_at": "2025-12-22T18:00:00+00:00"
-  },
-  "seven_day_opus": null,
-  "extra_usage": {
-    "is_enabled": false,
-    "monthly_limit": null,
-    "used_credits": null,
-    "utilization": null
-  }
-}
-```
-
-### Usage Limits Explained
-
-| Limit | Description |
-|-------|-------------|
-| `five_hour` | Current session - rolling 5-hour window usage |
-| `seven_day` | Weekly limit - all models combined |
-| `seven_day_sonnet` | Weekly Sonnet-only usage |
-| `seven_day_opus` | Weekly Opus-only usage (if applicable) |
-| `extra_usage` | Additional credits (Max plan feature) |
+### Admin API (optional)
+- **Endpoint**: `https://api.anthropic.com/v1/organizations/usage_report/messages`
+- **Auth**: Admin API key (`sk-ant-admin-...`)
+- **Data**: Historical token usage with model breakdown
 
 ## Troubleshooting
 
-### "Credentials not found"
+**"Credentials not found"** - Run `claude login`
 
-Ensure Claude Code is installed and you've logged in:
-```bash
-# Install Claude Code
-npm install -g @anthropic-ai/claude-code
+**"Authentication failed"** - Run `claude logout && claude login`
 
-# Login
-claude login
-```
-
-### "Authentication failed"
-
-Your session may have expired. Re-authenticate:
-```bash
-claude logout
-claude login
-```
-
-### No color output
-
-Colors require a TTY. When piping output, colors are automatically disabled.
-Use `--no-color` to force disable colors.
-
-## Contributing
-
-Issues and PRs welcome! This tool is intentionally minimal with no external dependencies.
+**Colors not showing** - Terminal must support ANSI; use `--no-color` for pipes
 
 ## License
 
 MIT
-
-## References
-
-- [Claude Code Documentation](https://claude.ai/docs/code)
-- [Usage Limits Article](https://codelynx.dev/posts/claude-code-usage-limits-statusline)
-- [Anthropic API Rate Limits](https://platform.claude.com/docs/en/api/rate-limits)
