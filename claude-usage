@@ -13,37 +13,47 @@ import os
 import platform
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
+from collections import defaultdict
+import statistics
+import shutil
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Configuration
 # ═══════════════════════════════════════════════════════════════════════════════
 
 API_URL = "https://api.anthropic.com/api/oauth/usage"
+ADMIN_API_URL = "https://api.anthropic.com/v1/organizations/usage_report/messages"
 API_BETA_HEADER = "oauth-2025-04-20"
+CONFIG_FILE = Path.home() / ".claude" / ".usage_config.json"
+HISTORY_FILE = Path.home() / ".claude" / ".usage_history.json"
+MAX_HISTORY_DAYS = 180  # 6 months
 
-# ANSI color codes (disabled on Windows without colorama or when not a TTY)
+# Systemd paths
+SYSTEMD_USER_DIR = Path.home() / ".config" / "systemd" / "user"
+SERVICE_NAME = "claude-usage-record"
+
+# ANSI color codes
 class Colors:
     RESET = "\033[0m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
-
-    # Usage level colors
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
     CYAN = "\033[96m"
     WHITE = "\033[97m"
     GRAY = "\033[90m"
+    MAGENTA = "\033[95m"
+    BAR_FILL = "\033[94m"
+    BAR_EMPTY = "\033[90m"
+    UP = "\033[91m"
+    DOWN = "\033[92m"
+    FLAT = "\033[90m"
 
-    # Progress bar
-    BAR_FILL = "\033[94m"  # Blue for filled portion
-    BAR_EMPTY = "\033[90m"  # Gray for empty portion
-
-# Disable colors if not a TTY or on Windows without proper support
 def supports_color():
     if not hasattr(sys.stdout, "isatty") or not sys.stdout.isatty():
         return False
@@ -57,46 +67,350 @@ if not supports_color():
             setattr(Colors, attr, "")
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Config Management
+# ═══════════════════════════════════════════════════════════════════════════════
+
+DEFAULT_CONFIG = {
+    "admin_api_key": None,
+    "use_admin_api": False,
+    "auto_collect": False,
+    "collect_interval_hours": 1,
+    "setup_completed": False
+}
+
+def load_config() -> dict:
+    """Load configuration from file."""
+    if not CONFIG_FILE.exists():
+        return DEFAULT_CONFIG.copy()
+    try:
+        with open(CONFIG_FILE) as f:
+            config = json.load(f)
+            # Merge with defaults for any missing keys
+            return {**DEFAULT_CONFIG, **config}
+    except (json.JSONDecodeError, IOError):
+        return DEFAULT_CONFIG.copy()
+
+def save_config(config: dict):
+    """Save configuration to file."""
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
+    # Secure the file (contains API key)
+    os.chmod(CONFIG_FILE, 0o600)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Setup Wizard
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def prompt_yes_no(question: str, default: bool = False) -> bool:
+    """Prompt user for yes/no answer."""
+    suffix = " [Y/n] " if default else " [y/N] "
+    while True:
+        response = input(f"{question}{suffix}").strip().lower()
+        if not response:
+            return default
+        if response in ("y", "yes"):
+            return True
+        if response in ("n", "no"):
+            return False
+        print("Please answer 'y' or 'n'")
+
+def prompt_input(question: str, default: str = "") -> str:
+    """Prompt user for text input."""
+    suffix = f" [{default}] " if default else " "
+    response = input(f"{question}{suffix}").strip()
+    return response if response else default
+
+def get_script_path() -> str:
+    """Get the path to this script."""
+    # Check if running from symlink
+    script = Path(sys.argv[0]).resolve()
+    if script.exists():
+        return str(script)
+    # Fallback to which
+    result = subprocess.run(["which", "claude-usage"], capture_output=True, text=True)
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return str(Path(__file__).resolve())
+
+def setup_systemd_timer(interval_hours: int = 1) -> bool:
+    """Set up systemd user timer for automatic collection."""
+    if platform.system() != "Linux":
+        print(f"{Colors.YELLOW}Automatic collection via systemd is only available on Linux.{Colors.RESET}")
+        print(f"{Colors.DIM}For macOS, you can use launchd. For Windows, use Task Scheduler.{Colors.RESET}")
+        return False
+
+    script_path = get_script_path()
+
+    service_content = f"""[Unit]
+Description=Record Claude Code usage to history
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={script_path} --no-color
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+"""
+
+    timer_content = f"""[Unit]
+Description=Record Claude Code usage every {interval_hours} hour(s)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec={interval_hours}h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+
+    try:
+        SYSTEMD_USER_DIR.mkdir(parents=True, exist_ok=True)
+
+        service_file = SYSTEMD_USER_DIR / f"{SERVICE_NAME}.service"
+        timer_file = SYSTEMD_USER_DIR / f"{SERVICE_NAME}.timer"
+
+        with open(service_file, "w") as f:
+            f.write(service_content)
+
+        with open(timer_file, "w") as f:
+            f.write(timer_content)
+
+        # Reload and enable
+        subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+        subprocess.run(["systemctl", "--user", "enable", f"{SERVICE_NAME}.timer"], check=True)
+        subprocess.run(["systemctl", "--user", "start", f"{SERVICE_NAME}.timer"], check=True)
+
+        return True
+    except Exception as e:
+        print(f"{Colors.RED}Failed to set up systemd timer: {e}{Colors.RESET}")
+        return False
+
+def disable_systemd_timer() -> bool:
+    """Disable and remove systemd timer."""
+    if platform.system() != "Linux":
+        return False
+
+    try:
+        subprocess.run(["systemctl", "--user", "stop", f"{SERVICE_NAME}.timer"],
+                      capture_output=True)
+        subprocess.run(["systemctl", "--user", "disable", f"{SERVICE_NAME}.timer"],
+                      capture_output=True)
+
+        service_file = SYSTEMD_USER_DIR / f"{SERVICE_NAME}.service"
+        timer_file = SYSTEMD_USER_DIR / f"{SERVICE_NAME}.timer"
+
+        if service_file.exists():
+            service_file.unlink()
+        if timer_file.exists():
+            timer_file.unlink()
+
+        subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
+        return True
+    except Exception:
+        return False
+
+def check_timer_status() -> dict | None:
+    """Check if systemd timer is active."""
+    if platform.system() != "Linux":
+        return None
+
+    try:
+        result = subprocess.run(
+            ["systemctl", "--user", "is-active", f"{SERVICE_NAME}.timer"],
+            capture_output=True, text=True
+        )
+        is_active = result.stdout.strip() == "active"
+
+        if is_active:
+            result = subprocess.run(
+                ["systemctl", "--user", "list-timers", f"{SERVICE_NAME}.timer", "--no-pager"],
+                capture_output=True, text=True
+            )
+            return {"active": True, "details": result.stdout}
+        return {"active": False}
+    except Exception:
+        return None
+
+def run_setup():
+    """Run interactive setup wizard."""
+    print()
+    print(f"{Colors.BOLD}{Colors.CYAN}═══ Claude Usage CLI Setup ═══{Colors.RESET}")
+    print()
+
+    config = load_config()
+
+    # Step 1: Admin API Key
+    print(f"{Colors.BOLD}Step 1: Admin API Key (Optional){Colors.RESET}")
+    print()
+    print("The Admin API provides historical usage data but requires:")
+    print(f"  {Colors.DIM}• An organization account (not individual Pro/Max){Colors.RESET}")
+    print(f"  {Colors.DIM}• Admin role in the organization{Colors.RESET}")
+    print(f"  {Colors.DIM}• Admin API key (sk-ant-admin-...){Colors.RESET}")
+    print()
+    print(f"Get your Admin API key at: {Colors.CYAN}https://console.anthropic.com/settings/admin-keys{Colors.RESET}")
+    print()
+
+    has_admin_key = prompt_yes_no("Do you have an Admin API key?", default=False)
+
+    if has_admin_key:
+        while True:
+            admin_key = prompt_input("Enter your Admin API key (sk-ant-admin-...):")
+            if admin_key.startswith("sk-ant-admin"):
+                config["admin_api_key"] = admin_key
+                config["use_admin_api"] = True
+                print(f"{Colors.GREEN}✓ Admin API key saved{Colors.RESET}")
+                break
+            elif not admin_key:
+                print("Skipping Admin API setup.")
+                break
+            else:
+                print(f"{Colors.RED}Invalid key format. Admin keys start with 'sk-ant-admin-'{Colors.RESET}")
+    else:
+        print()
+        print(f"{Colors.DIM}No problem! We'll use local tracking instead.{Colors.RESET}")
+        print(f"{Colors.DIM}Your usage will be recorded each time you run the command.{Colors.RESET}")
+        config["use_admin_api"] = False
+
+    print()
+
+    # Step 2: Automatic Collection
+    print(f"{Colors.BOLD}Step 2: Automatic Data Collection{Colors.RESET}")
+    print()
+
+    if not config["use_admin_api"]:
+        print("Since you're using local tracking, we recommend automatic collection")
+        print("to build historical data for analytics.")
+        print()
+    else:
+        print("Even with Admin API, local collection provides faster access to recent data.")
+        print()
+
+    setup_auto = prompt_yes_no("Set up automatic hourly data collection?", default=True)
+
+    if setup_auto:
+        interval = prompt_input("Collection interval in hours", default="1")
+        try:
+            interval_hours = int(interval)
+            if interval_hours < 1:
+                interval_hours = 1
+        except ValueError:
+            interval_hours = 1
+
+        print()
+        print(f"Setting up collection every {interval_hours} hour(s)...")
+
+        if setup_systemd_timer(interval_hours):
+            config["auto_collect"] = True
+            config["collect_interval_hours"] = interval_hours
+            print(f"{Colors.GREEN}✓ Automatic collection enabled{Colors.RESET}")
+            print()
+            print(f"{Colors.DIM}Manage with:{Colors.RESET}")
+            print(f"  systemctl --user status {SERVICE_NAME}.timer")
+            print(f"  systemctl --user stop {SERVICE_NAME}.timer")
+        else:
+            config["auto_collect"] = False
+    else:
+        config["auto_collect"] = False
+        # Disable existing timer if any
+        disable_systemd_timer()
+
+    print()
+
+    # Save config
+    config["setup_completed"] = True
+    save_config(config)
+
+    print(f"{Colors.GREEN}{Colors.BOLD}✓ Setup complete!{Colors.RESET}")
+    print()
+    print(f"Configuration saved to: {Colors.DIM}{CONFIG_FILE}{Colors.RESET}")
+    print()
+    print("Run again to see your usage:")
+    print(f"  {Colors.CYAN}claude-usage{Colors.RESET}           - Current usage")
+    print(f"  {Colors.CYAN}claude-usage -a{Colors.RESET}        - With analytics")
+    print(f"  {Colors.CYAN}claude-usage --setup{Colors.RESET}   - Re-run setup")
+    print()
+
+def show_config():
+    """Display current configuration."""
+    config = load_config()
+    timer_status = check_timer_status()
+
+    print()
+    print(f"{Colors.BOLD}{Colors.CYAN}Current Configuration{Colors.RESET}")
+    print()
+
+    # Admin API
+    if config.get("admin_api_key"):
+        key = config["admin_api_key"]
+        masked = key[:15] + "..." + key[-4:] if len(key) > 20 else "***"
+        print(f"  Admin API Key:    {Colors.GREEN}Configured{Colors.RESET} ({masked})")
+        print(f"  Use Admin API:    {Colors.GREEN if config.get('use_admin_api') else Colors.YELLOW}{'Yes' if config.get('use_admin_api') else 'No'}{Colors.RESET}")
+    else:
+        print(f"  Admin API Key:    {Colors.DIM}Not configured{Colors.RESET}")
+        print(f"  Data Source:      {Colors.CYAN}Local tracking{Colors.RESET}")
+
+    print()
+
+    # Auto collection
+    if timer_status:
+        if timer_status.get("active"):
+            print(f"  Auto Collection:  {Colors.GREEN}Active{Colors.RESET} (every {config.get('collect_interval_hours', 1)}h)")
+        else:
+            print(f"  Auto Collection:  {Colors.YELLOW}Inactive{Colors.RESET}")
+    else:
+        print(f"  Auto Collection:  {Colors.DIM}N/A (Linux only){Colors.RESET}")
+
+    # History stats
+    history = load_history()
+    print()
+    print(f"  History Records:  {len(history)}")
+    if history:
+        oldest = min(h["timestamp"] for h in history)
+        newest = max(h["timestamp"] for h in history)
+        oldest_dt = datetime.fromisoformat(oldest.replace("Z", "+00:00")).astimezone()
+        newest_dt = datetime.fromisoformat(newest.replace("Z", "+00:00")).astimezone()
+        print(f"  Date Range:       {oldest_dt.strftime('%Y-%m-%d')} to {newest_dt.strftime('%Y-%m-%d')}")
+
+    print()
+    print(f"  Config File:      {CONFIG_FILE}")
+    print(f"  History File:     {HISTORY_FILE}")
+    print()
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Credential Management
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_credentials_path() -> Path:
-    """Get the credentials file path based on platform."""
     system = platform.system()
-
     if system == "Windows":
         base = Path(os.environ.get("APPDATA", "~"))
     else:
         base = Path.home()
-
     return base / ".claude" / ".credentials.json"
 
-
 def get_macos_keychain_credentials() -> dict | None:
-    """Try to get credentials from macOS Keychain."""
     try:
         result = subprocess.run(
             ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
-            capture_output=True,
-            text=True,
-            check=True
+            capture_output=True, text=True, check=True
         )
         return json.loads(result.stdout.strip())
     except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
         return None
 
-
 def get_credentials() -> dict:
-    """Get Claude Code OAuth credentials."""
-    # Try macOS Keychain first on macOS
     if platform.system() == "Darwin":
         creds = get_macos_keychain_credentials()
         if creds:
             return creds
 
-    # Fall back to credentials file
     creds_path = get_credentials_path()
-
     if not creds_path.exists():
         raise FileNotFoundError(
             f"Credentials not found at {creds_path}\n"
@@ -106,25 +420,54 @@ def get_credentials() -> dict:
     with open(creds_path) as f:
         return json.load(f)
 
-
 def get_access_token() -> str:
-    """Extract the access token from credentials."""
     creds = get_credentials()
-
     oauth = creds.get("claudeAiOauth", {})
     token = oauth.get("accessToken")
-
     if not token:
         raise ValueError("No access token found in credentials")
-
     return token
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# History Management
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def load_history() -> list:
+    if not HISTORY_FILE.exists():
+        return []
+    try:
+        with open(HISTORY_FILE) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
+
+def save_history(history: list):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=MAX_HISTORY_DAYS)
+    cutoff_str = cutoff.isoformat()
+    history = [h for h in history if h.get("timestamp", "") > cutoff_str]
+
+    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=2)
+
+def record_usage(data: dict):
+    history = load_history()
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "five_hour": data.get("five_hour", {}).get("utilization"),
+        "seven_day": data.get("seven_day", {}).get("utilization"),
+        "seven_day_sonnet": data.get("seven_day_sonnet", {}).get("utilization") if data.get("seven_day_sonnet") else None,
+        "seven_day_opus": data.get("seven_day_opus", {}).get("utilization") if data.get("seven_day_opus") else None,
+    }
+    history.append(entry)
+    save_history(history)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # API Communication
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def fetch_usage() -> dict:
-    """Fetch usage data from the Anthropic API."""
+    """Fetch current usage from OAuth API."""
     token = get_access_token()
 
     req = Request(
@@ -150,28 +493,57 @@ def fetch_usage() -> dict:
     except URLError as e:
         raise RuntimeError(f"Network error: {e.reason}")
 
+def fetch_admin_usage(admin_key: str, days: int = 7) -> list:
+    """Fetch historical usage from Admin API."""
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
+
+    url = (
+        f"{ADMIN_API_URL}?"
+        f"starting_at={start_date.strftime('%Y-%m-%dT00:00:00Z')}&"
+        f"ending_at={end_date.strftime('%Y-%m-%dT23:59:59Z')}&"
+        f"bucket_width=1d&"
+        f"group_by[]=model"
+    )
+
+    req = Request(
+        url,
+        headers={
+            "x-api-key": admin_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+            "User-Agent": "claude-usage-cli/1.0"
+        }
+    )
+
+    try:
+        with urlopen(req, timeout=30) as response:
+            data = json.loads(response.read().decode())
+            return data.get("data", [])
+    except HTTPError as e:
+        if e.code == 401:
+            raise RuntimeError("Admin API authentication failed. Check your API key.")
+        if e.code == 403:
+            raise RuntimeError("Admin API access denied. Ensure you have admin role.")
+        raise RuntimeError(f"Admin API error: {e.code} {e.reason}")
+    except URLError as e:
+        raise RuntimeError(f"Network error: {e.reason}")
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Time Formatting
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def parse_reset_time(iso_str: str) -> datetime:
-    """Parse ISO 8601 timestamp to datetime."""
-    # Handle various ISO formats
     iso_str = iso_str.replace("Z", "+00:00")
     if "." in iso_str:
-        # Truncate microseconds if present
         parts = iso_str.split("+")
         if len(parts) == 2:
             iso_str = parts[0].split(".")[0] + "+" + parts[1]
-
     return datetime.fromisoformat(iso_str)
 
-
 def format_relative_time(reset_at: str) -> str:
-    """Format reset time as relative duration (e.g., '3 hr 33 min')."""
     reset_dt = parse_reset_time(reset_at)
     now = datetime.now(timezone.utc)
-
     delta = reset_dt - now
     total_seconds = max(0, int(delta.total_seconds()))
 
@@ -182,16 +554,11 @@ def format_relative_time(reset_at: str) -> str:
         return f"{hours} hr {minutes} min"
     elif minutes > 0:
         return f"{minutes} min"
-    else:
-        return "< 1 min"
-
+    return "< 1 min"
 
 def format_absolute_time(reset_at: str) -> str:
-    """Format reset time as absolute (e.g., 'Tue 9:59 AM')."""
     reset_dt = parse_reset_time(reset_at)
     local_dt = reset_dt.astimezone()
-
-    # Format as "Day HH:MM AM/PM"
     return local_dt.strftime("%a %-I:%M %p").replace(" 0", " ")
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -199,43 +566,31 @@ def format_absolute_time(reset_at: str) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def make_progress_bar(percentage: float, width: int = 25) -> str:
-    """Create a visual progress bar."""
     filled = int(width * percentage / 100)
     empty = width - filled
-
-    # Use block characters for the bar
-    bar = f"{Colors.BAR_FILL}{'█' * filled}{Colors.BAR_EMPTY}{'░' * empty}{Colors.RESET}"
-    return bar
-
+    return f"{Colors.BAR_FILL}{'█' * filled}{Colors.BAR_EMPTY}{'░' * empty}{Colors.RESET}"
 
 def get_usage_color(percentage: float) -> str:
-    """Get color based on usage percentage."""
     if percentage >= 80:
         return Colors.RED
     elif percentage >= 50:
         return Colors.YELLOW
     return Colors.GREEN
 
-
 def format_percentage(percentage: float) -> str:
-    """Format percentage with color based on usage level."""
     color = get_usage_color(percentage)
     return f"{color}{int(percentage)}% used{Colors.RESET}"
 
-
 def print_usage_row(label: str, data: dict | None, use_relative_time: bool = False):
-    """Print a single usage row with progress bar."""
     if data is None:
         return
 
     utilization = data.get("utilization", 0)
     resets_at = data.get("resets_at", "")
 
-    # Create progress bar
     bar = make_progress_bar(utilization)
     pct = format_percentage(utilization)
 
-    # Format reset time
     if resets_at:
         if use_relative_time:
             reset_str = f"Resets in {format_relative_time(resets_at)}"
@@ -244,46 +599,31 @@ def print_usage_row(label: str, data: dict | None, use_relative_time: bool = Fal
     else:
         reset_str = ""
 
-    # Print row
     print(f"{Colors.WHITE}{label:<20}{Colors.RESET} {bar}  {pct}")
     if reset_str:
         print(f"{Colors.DIM}{reset_str}{Colors.RESET}")
     print()
 
-
-def print_section_header(title: str):
-    """Print a section header."""
-    print(f"{Colors.BOLD}{Colors.WHITE}{title}{Colors.RESET}")
-    print()
-
-
 def display_usage(data: dict):
-    """Display the usage data in a formatted way."""
     print()
     print(f"{Colors.BOLD}{Colors.CYAN}Plan usage limits{Colors.RESET}")
     print()
 
-    # Current session (5-hour window)
     if data.get("five_hour"):
         print_usage_row("Current session", data["five_hour"], use_relative_time=True)
 
-    # Weekly limits section
     print(f"{Colors.BOLD}{Colors.WHITE}Weekly limits{Colors.RESET}")
     print()
 
-    # All models (7-day)
     if data.get("seven_day"):
         print_usage_row("All models", data["seven_day"])
 
-    # Sonnet only
     if data.get("seven_day_sonnet"):
         print_usage_row("Sonnet only", data["seven_day_sonnet"])
 
-    # Opus only (if present)
     if data.get("seven_day_opus"):
         print_usage_row("Opus only", data["seven_day_opus"])
 
-    # Extra usage info (if enabled)
     extra = data.get("extra_usage", {})
     if extra.get("is_enabled"):
         print(f"{Colors.BOLD}{Colors.WHITE}Extra usage{Colors.RESET}")
@@ -294,17 +634,281 @@ def display_usage(data: dict):
                 "resets_at": None
             })
 
-    # Last updated
-    now = datetime.now().strftime("%-I:%M %p").lower()
     print(f"{Colors.DIM}Last updated: just now{Colors.RESET}")
     print()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# JSON Output
+# Analytics Display
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def make_sparkline(values: list, width: int = 20) -> str:
+    if not values:
+        return "─" * width
+
+    chars = "▁▂▃▄▅▆▇█"
+    min_val = min(values)
+    max_val = max(values)
+    range_val = max_val - min_val if max_val > min_val else 1
+
+    if len(values) > width:
+        step = len(values) / width
+        values = [values[int(i * step)] for i in range(width)]
+
+    sparkline = ""
+    for v in values:
+        idx = int((v - min_val) / range_val * (len(chars) - 1))
+        sparkline += chars[idx]
+
+    return f"{Colors.CYAN}{sparkline}{Colors.RESET}"
+
+def format_trend(current: float, previous: float) -> str:
+    if previous is None or previous == 0:
+        return ""
+
+    change = current - previous
+    pct_change = (change / previous) * 100 if previous != 0 else 0
+
+    if change > 0:
+        arrow, color = "↑", Colors.UP
+    elif change < 0:
+        arrow, color = "↓", Colors.DOWN
+        pct_change = abs(pct_change)
+    else:
+        arrow, color = "→", Colors.FLAT
+
+    return f"{color}{arrow} {pct_change:.1f}%{Colors.RESET}"
+
+def get_period_stats(history: list, hours: int, field: str) -> dict:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    cutoff_str = cutoff.isoformat()
+
+    values = [
+        h[field] for h in history
+        if h.get("timestamp", "") > cutoff_str and h.get(field) is not None
+    ]
+
+    if not values:
+        return {"count": 0}
+
+    return {
+        "count": len(values),
+        "min": min(values),
+        "max": max(values),
+        "avg": statistics.mean(values),
+        "current": values[-1] if values else None,
+        "values": values
+    }
+
+def get_daily_peaks(history: list, field: str) -> dict:
+    by_dow = defaultdict(list)
+    by_hour = defaultdict(list)
+
+    for h in history:
+        if h.get(field) is None:
+            continue
+        try:
+            dt = datetime.fromisoformat(h["timestamp"].replace("Z", "+00:00"))
+            local_dt = dt.astimezone()
+            by_dow[local_dt.strftime("%a")].append(h[field])
+            by_hour[local_dt.hour].append(h[field])
+        except (ValueError, KeyError):
+            continue
+
+    peak_day, peak_day_avg = None, 0
+    for day, vals in by_dow.items():
+        avg = statistics.mean(vals) if vals else 0
+        if avg > peak_day_avg:
+            peak_day, peak_day_avg = day, avg
+
+    peak_hour, peak_hour_avg = None, 0
+    for hour, vals in by_hour.items():
+        avg = statistics.mean(vals) if vals else 0
+        if avg > peak_hour_avg:
+            peak_hour, peak_hour_avg = hour, avg
+
+    return {
+        "peak_day": peak_day, "peak_day_avg": peak_day_avg,
+        "peak_hour": peak_hour, "peak_hour_avg": peak_hour_avg
+    }
+
+def display_admin_usage(admin_data: list):
+    """Display usage data from Admin API."""
+    if not admin_data:
+        print(f"{Colors.DIM}No usage data from Admin API{Colors.RESET}")
+        return
+
+    print()
+    print(f"{Colors.BOLD}{Colors.MAGENTA}═══ Organization Usage (Admin API) ═══{Colors.RESET}")
+    print()
+
+    # Aggregate by day
+    by_day = defaultdict(lambda: {"input": 0, "output": 0, "cache_read": 0})
+
+    for bucket in admin_data:
+        date = bucket.get("starting_at", "")[:10]
+        for result in bucket.get("results", []):
+            by_day[date]["input"] += result.get("uncached_input_tokens", 0)
+            by_day[date]["output"] += result.get("output_tokens", 0)
+            by_day[date]["cache_read"] += result.get("cache_read_input_tokens", 0)
+
+    # Display daily usage
+    print(f"{Colors.BOLD}Daily Token Usage (Last 7 Days){Colors.RESET}")
+    print()
+    print(f"  {'Date':<12} {'Input':>12} {'Output':>12} {'Cached':>12}")
+    print(f"  {'-'*12} {'-'*12} {'-'*12} {'-'*12}")
+
+    total_input, total_output, total_cache = 0, 0, 0
+    for date in sorted(by_day.keys(), reverse=True)[:7]:
+        stats = by_day[date]
+        total_input += stats["input"]
+        total_output += stats["output"]
+        total_cache += stats["cache_read"]
+        print(f"  {date:<12} {stats['input']:>12,} {stats['output']:>12,} {stats['cache_read']:>12,}")
+
+    print(f"  {'-'*12} {'-'*12} {'-'*12} {'-'*12}")
+    print(f"  {'Total':<12} {total_input:>12,} {total_output:>12,} {total_cache:>12,}")
+    print()
+
+def display_analytics(data: dict, history: list, config: dict):
+    """Display detailed analytics."""
+    print()
+    print(f"{Colors.BOLD}{Colors.MAGENTA}═══ Usage Analytics ═══{Colors.RESET}")
+    print()
+
+    # Data source indicator
+    if config.get("use_admin_api") and config.get("admin_api_key"):
+        print(f"{Colors.DIM}Data source: Admin API + Local tracking{Colors.RESET}")
+    else:
+        print(f"{Colors.DIM}Data source: Local tracking{Colors.RESET}")
+    print()
+
+    # Current usage summary
+    print(f"{Colors.BOLD}{Colors.WHITE}Current Status{Colors.RESET}")
+    print()
+
+    five_hour = data.get("five_hour", {}).get("utilization", 0)
+    seven_day = data.get("seven_day", {}).get("utilization", 0)
+
+    session_remaining = 100 - five_hour
+    weekly_remaining = 100 - seven_day
+
+    print(f"  Session capacity remaining:  {Colors.GREEN}{session_remaining:.0f}%{Colors.RESET}")
+    print(f"  Weekly capacity remaining:   {Colors.GREEN}{weekly_remaining:.0f}%{Colors.RESET}")
+
+    if history:
+        recent_1h = get_period_stats(history, 1, "five_hour")
+        if recent_1h["count"] >= 2:
+            rate = recent_1h["max"] - recent_1h["min"]
+            if rate > 0:
+                hours_to_limit = session_remaining / rate
+                if hours_to_limit < 24:
+                    print(f"  Est. time to session limit:  {Colors.YELLOW}{hours_to_limit:.1f} hours{Colors.RESET} (at current rate)")
+
+    print()
+
+    # Historical trends from local data
+    if not history:
+        print(f"{Colors.DIM}No historical data yet. Run periodically to collect analytics.{Colors.RESET}")
+        print(f"{Colors.DIM}Data is stored in: {HISTORY_FILE}{Colors.RESET}")
+        print()
+        return
+
+    print(f"{Colors.BOLD}{Colors.WHITE}Session Usage Trends (5-hour window){Colors.RESET}")
+    print()
+
+    stats_24h = get_period_stats(history, 24, "five_hour")
+    if stats_24h["count"] > 0:
+        sparkline = make_sparkline(stats_24h["values"])
+        print(f"  Last 24h: {sparkline}")
+        print(f"            Min: {stats_24h['min']:.0f}%  Max: {stats_24h['max']:.0f}%  Avg: {stats_24h['avg']:.1f}%")
+
+        stats_prev = get_period_stats(
+            [h for h in history if h["timestamp"] < (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()],
+            24, "five_hour"
+        )
+        if stats_prev["count"] > 0:
+            trend = format_trend(stats_24h["avg"], stats_prev["avg"])
+            print(f"            vs prev 24h: {trend}")
+    print()
+
+    stats_7d = get_period_stats(history, 168, "five_hour")
+    if stats_7d["count"] > 0:
+        sparkline = make_sparkline(stats_7d["values"])
+        print(f"  Last 7d:  {sparkline}")
+        print(f"            Min: {stats_7d['min']:.0f}%  Max: {stats_7d['max']:.0f}%  Avg: {stats_7d['avg']:.1f}%")
+    print()
+
+    print(f"{Colors.BOLD}{Colors.WHITE}Weekly Usage Trends (7-day window){Colors.RESET}")
+    print()
+
+    stats_weekly = get_period_stats(history, 168, "seven_day")
+    if stats_weekly["count"] > 0:
+        sparkline = make_sparkline(stats_weekly["values"])
+        print(f"  Last 7d:  {sparkline}")
+        print(f"            Min: {stats_weekly['min']:.0f}%  Max: {stats_weekly['max']:.0f}%  Avg: {stats_weekly['avg']:.1f}%")
+    print()
+
+    peaks = get_daily_peaks(history, "five_hour")
+    if peaks["peak_day"] or peaks["peak_hour"] is not None:
+        print(f"{Colors.BOLD}{Colors.WHITE}Usage Patterns{Colors.RESET}")
+        print()
+        if peaks["peak_day"]:
+            print(f"  Peak day:   {Colors.YELLOW}{peaks['peak_day']}{Colors.RESET} (avg {peaks['peak_day_avg']:.1f}%)")
+        if peaks["peak_hour"] is not None:
+            hour_str = datetime.now().replace(hour=peaks["peak_hour"], minute=0).strftime("%-I %p")
+            print(f"  Peak hour:  {Colors.YELLOW}{hour_str}{Colors.RESET} (avg {peaks['peak_hour_avg']:.1f}%)")
+        print()
+
+    total_records = len(history)
+    oldest = min(h["timestamp"] for h in history) if history else None
+    if oldest:
+        oldest_dt = datetime.fromisoformat(oldest.replace("Z", "+00:00")).astimezone()
+        days_tracked = (datetime.now(timezone.utc) - oldest_dt.astimezone(timezone.utc)).days
+        print(f"{Colors.DIM}Analytics based on {total_records} data points over {days_tracked} days{Colors.RESET}")
+
+    print(f"{Colors.DIM}History stored in: {HISTORY_FILE}{Colors.RESET}")
+    print()
+
+def display_analytics_json(data: dict, history: list, config: dict):
+    """Output analytics as JSON."""
+    stats_24h = get_period_stats(history, 24, "five_hour")
+    stats_7d = get_period_stats(history, 168, "five_hour")
+    stats_weekly = get_period_stats(history, 168, "seven_day")
+    peaks = get_daily_peaks(history, "five_hour")
+
+    analytics = {
+        "current": data,
+        "history_count": len(history),
+        "data_source": "admin_api" if config.get("use_admin_api") else "local",
+        "session_stats_24h": {
+            "min": stats_24h.get("min"),
+            "max": stats_24h.get("max"),
+            "avg": stats_24h.get("avg"),
+            "count": stats_24h.get("count", 0)
+        } if stats_24h["count"] > 0 else None,
+        "session_stats_7d": {
+            "min": stats_7d.get("min"),
+            "max": stats_7d.get("max"),
+            "avg": stats_7d.get("avg"),
+            "count": stats_7d.get("count", 0)
+        } if stats_7d["count"] > 0 else None,
+        "weekly_stats_7d": {
+            "min": stats_weekly.get("min"),
+            "max": stats_weekly.get("max"),
+            "avg": stats_weekly.get("avg"),
+            "count": stats_weekly.get("count", 0)
+        } if stats_weekly["count"] > 0 else None,
+        "patterns": {
+            "peak_day": peaks.get("peak_day"),
+            "peak_day_avg": peaks.get("peak_day_avg"),
+            "peak_hour": peaks.get("peak_hour"),
+            "peak_hour_avg": peaks.get("peak_hour_avg")
+        }
+    }
+
+    print(json.dumps(analytics, indent=2))
+
 def display_json(data: dict):
-    """Output raw JSON data."""
     print(json.dumps(data, indent=2))
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -312,7 +916,6 @@ def display_json(data: dict):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    """Main entry point."""
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -321,40 +924,90 @@ def main():
         epilog="""
 Examples:
   claude-usage              Show usage in formatted view
+  claude-usage --analytics  Show detailed analytics and trends
+  claude-usage --setup      Run interactive setup wizard
+  claude-usage --config     Show current configuration
   claude-usage --json       Output raw JSON data
-  claude-usage --no-color   Disable colored output
 
-Sources:
-  API endpoint: https://api.anthropic.com/api/oauth/usage
-  Credentials:  ~/.claude/.credentials.json (Linux/Windows)
-                macOS Keychain or ~/.claude/.credentials.json (macOS)
+Setup:
+  On first run, you'll be prompted to configure:
+  - Admin API key (optional, for organizations)
+  - Automatic hourly data collection
 """
     )
 
-    parser.add_argument(
-        "--json", "-j",
-        action="store_true",
-        help="Output raw JSON instead of formatted view"
-    )
-
-    parser.add_argument(
-        "--no-color",
-        action="store_true",
-        help="Disable colored output"
-    )
+    parser.add_argument("--json", "-j", action="store_true",
+                       help="Output raw JSON instead of formatted view")
+    parser.add_argument("--analytics", "-a", action="store_true",
+                       help="Show detailed analytics with historical trends")
+    parser.add_argument("--setup", "-s", action="store_true",
+                       help="Run interactive setup wizard")
+    parser.add_argument("--config", "-c", action="store_true",
+                       help="Show current configuration")
+    parser.add_argument("--no-color", action="store_true",
+                       help="Disable colored output")
+    parser.add_argument("--no-record", action="store_true",
+                       help="Don't record this fetch to history")
 
     args = parser.parse_args()
 
-    # Disable colors if requested
     if args.no_color:
         for attr in dir(Colors):
             if not attr.startswith("_"):
                 setattr(Colors, attr, "")
 
+    # Handle setup and config commands
+    if args.setup:
+        run_setup()
+        return
+
+    if args.config:
+        show_config()
+        return
+
+    # Load config
+    config = load_config()
+
+    # First run check
+    if not config.get("setup_completed") and sys.stdin.isatty():
+        print()
+        print(f"{Colors.BOLD}{Colors.CYAN}Welcome to Claude Usage CLI!{Colors.RESET}")
+        print()
+        if prompt_yes_no("Would you like to run the setup wizard?", default=True):
+            run_setup()
+            return
+        else:
+            config["setup_completed"] = True
+            save_config(config)
+
     try:
+        # Fetch current usage
         data = fetch_usage()
 
-        if args.json:
+        # Record to history
+        if not args.no_record:
+            record_usage(data)
+
+        history = load_history()
+
+        # Fetch admin data if configured
+        admin_data = None
+        if config.get("use_admin_api") and config.get("admin_api_key"):
+            try:
+                admin_data = fetch_admin_usage(config["admin_api_key"])
+            except Exception as e:
+                print(f"{Colors.YELLOW}Warning: Admin API fetch failed: {e}{Colors.RESET}", file=sys.stderr)
+
+        # Display output
+        if args.analytics:
+            if args.json:
+                display_analytics_json(data, history, config)
+            else:
+                display_usage(data)
+                if admin_data:
+                    display_admin_usage(admin_data)
+                display_analytics(data, history, config)
+        elif args.json:
             display_json(data)
         else:
             display_usage(data)
@@ -368,7 +1021,6 @@ Sources:
     except KeyboardInterrupt:
         print()
         sys.exit(130)
-
 
 if __name__ == "__main__":
     main()
