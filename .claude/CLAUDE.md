@@ -1,10 +1,11 @@
-# Claude Code Usage CLI - Project Instructions
+# Claude Code Watch - Project Instructions
 
 ## Project Overview
 CLI tool to monitor Claude Code subscription usage limits.
 - **Language**: Python 3.8+ (stdlib only, zero dependencies)
 - **Platform**: Cross-platform (Linux, macOS, Windows)
-- **Entry point**: `claude-usage` (executable Python script)
+- **Entry point**: `claude-watch` (executable Python script)
+- **Short alias**: `ccw` (configure via shell alias or pip install)
 
 ## Commit Convention
 
@@ -67,7 +68,7 @@ chore: update .gitignore
 pytest
 
 # Run with coverage
-pytest --cov=claude_usage --cov-report=term-missing
+pytest --cov=claude_watch --cov-report=term-missing
 
 # Run specific test file
 pytest tests/test_api.py -v
@@ -84,8 +85,8 @@ pytest tests/test_api.py -v
 ## File Structure
 
 ```
-claude-code-usage-cli/
-├── claude-usage           # Main executable script
+claude-watch/
+├── claude-watch           # Main executable script
 ├── tests/                 # Test suite
 │   ├── conftest.py       # Fixtures
 │   ├── test_*.py         # Test files
@@ -99,7 +100,7 @@ claude-code-usage-cli/
 
 ## Key Files
 
-- `claude-usage` - Main script (all code in single file)
+- `claude-watch` - Main script (all code in single file)
 - `~/.claude/.usage_config.json` - User configuration
 - `~/.claude/.usage_history.json` - Usage history
 - `~/.claude/.credentials.json` - Claude Code credentials

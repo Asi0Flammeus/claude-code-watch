@@ -1,11 +1,11 @@
-# Claude Usage CLI - Development Commands
+# Claude Code Watch - Development Commands
 # ═══════════════════════════════════════════════════════════════════════════════
 
 .PHONY: help install install-dev test test-cov lint format clean
 
 # Default target
 help:
-	@echo "Claude Usage CLI - Development Commands"
+	@echo "Claude Code Watch - Development Commands"
 	@echo ""
 	@echo "Usage: make <target>"
 	@echo ""

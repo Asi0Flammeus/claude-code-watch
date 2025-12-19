@@ -1,4 +1,4 @@
-# Claude Code Usage CLI
+# Claude Code Watch
 
 A command-line tool to monitor your Claude Code subscription usage, similar to [claude.ai/settings/usage](https://claude.ai/settings/usage).
 
@@ -33,13 +33,20 @@ See [docs/FEATURES.md](docs/FEATURES.md) for detailed specifications.
 
 ```bash
 # Clone and install
-git clone https://github.com/YOUR_REPO/claude-code-usage-cli.git
-ln -s $(pwd)/claude-code-usage-cli/claude-usage ~/.local/bin/
+git clone https://github.com/YOUR_REPO/claude-watch.git
+cd claude-watch
+
+# Option 1: Symlink to PATH
+ln -s $(pwd)/claude-watch ~/.local/bin/claude-watch
+
+# Option 2: Add alias for ccw (add to ~/.bashrc or ~/.zshrc)
+alias ccw='/path/to/claude-watch/claude-watch'
 
 # Run
-claude-usage           # Current usage
-claude-usage -a        # With analytics
-claude-usage --setup   # Configure auto-collection
+claude-watch           # Current usage
+claude-watch -a        # With analytics
+claude-watch --setup   # Configure auto-collection
+ccw                    # Short alias
 ```
 
 ## Example Output
@@ -63,13 +70,14 @@ Resets Mon 6:59 PM
 
 | Command | Description |
 |---------|-------------|
-| `claude-usage` | Show current usage |
-| `claude-usage -a` | Show analytics with trends |
-| `claude-usage -j` | Output raw JSON |
-| `claude-usage --setup` | Run setup wizard |
-| `claude-usage --config` | Show configuration |
-| `claude-usage --no-color` | Disable colors (for piping) |
-| `claude-usage --no-record` | Don't save to history |
+| `claude-watch` | Show current usage |
+| `claude-watch -a` | Show analytics with trends |
+| `claude-watch -j` | Output raw JSON |
+| `claude-watch --setup` | Run setup wizard |
+| `claude-watch --config` | Show configuration |
+| `claude-watch --no-color` | Disable colors (for piping) |
+| `claude-watch --no-record` | Don't save to history |
+| `ccw` | Short alias (configure in shell) |
 
 ## Setup Wizard
 
@@ -79,7 +87,7 @@ First run prompts for optional configuration:
 2. **Auto-collection** - Hourly systemd timer for analytics
 3. **Subscription plan** - Pro ($20), Max 5x ($100), or Max 20x ($200)
 
-Re-run anytime with `claude-usage --setup`.
+Re-run anytime with `claude-watch --setup`.
 
 ## Analytics Mode
 

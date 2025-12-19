@@ -1,5 +1,5 @@
 """
-Pytest fixtures for claude-usage tests.
+Pytest fixtures for claude-watch tests.
 """
 import json
 import sys
@@ -125,21 +125,21 @@ def config_max():
 @pytest.fixture
 def mock_fetch_usage(usage_normal):
     """Mock fetch_usage to return normal usage data."""
-    with patch("claude_usage.fetch_usage", return_value=usage_normal) as mock:
+    with patch("claude_watch.fetch_usage", return_value=usage_normal) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_credentials(credentials_valid):
     """Mock get_credentials to return valid credentials."""
-    with patch("claude_usage.get_credentials", return_value=credentials_valid) as mock:
+    with patch("claude_watch.get_credentials", return_value=credentials_valid) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_urlopen():
     """Mock urlopen for API testing."""
-    with patch("claude_usage.urlopen") as mock:
+    with patch("claude_watch.urlopen") as mock:
         yield mock
 
 
@@ -184,7 +184,7 @@ def fixed_now():
 @pytest.fixture
 def mock_now(fixed_now):
     """Mock datetime.now to return fixed time."""
-    with patch("claude_usage.datetime") as mock_dt:
+    with patch("claude_watch.datetime") as mock_dt:
         mock_dt.now.return_value = fixed_now
         mock_dt.fromisoformat = datetime.fromisoformat
         mock_dt.strptime = datetime.strptime

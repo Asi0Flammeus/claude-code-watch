@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-Claude Code Usage CLI - Display your Claude Code subscription usage limits.
+Claude Code Watch - Monitor your Claude Code subscription usage limits.
 
 Fetches usage data from the Anthropic OAuth API and displays it in a clean
 terminal interface similar to claude.ai/settings/usage.
 
 Cross-platform support: Linux, macOS, Windows
+
+Commands:
+  claude-watch     Primary command
+  ccw              Short alias (configure via shell alias)
 """
 
 import json
@@ -34,7 +38,7 @@ MAX_HISTORY_DAYS = 180  # 6 months
 
 # Systemd paths
 SYSTEMD_USER_DIR = Path.home() / ".config" / "systemd" / "user"
-SERVICE_NAME = "claude-usage-record"
+SERVICE_NAME = "claude-watch-record"
 
 # ANSI color codes
 class Colors:
@@ -216,7 +220,7 @@ def get_script_path() -> str:
     if script.exists():
         return str(script)
     # Fallback to which
-    result = subprocess.run(["which", "claude-usage"], capture_output=True, text=True)
+    result = subprocess.run(["which", "claude-watch"], capture_output=True, text=True)
     if result.returncode == 0:
         return result.stdout.strip()
     return str(Path(__file__).resolve())
@@ -328,7 +332,7 @@ def check_timer_status() -> dict | None:
 def run_setup():
     """Run interactive setup wizard."""
     print()
-    print(f"{Colors.BOLD}{Colors.CYAN}═══ Claude Usage CLI Setup ═══{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}═══ Claude Code Watch Setup ═══{Colors.RESET}")
     print()
 
     config = load_config()
@@ -437,9 +441,10 @@ def run_setup():
     print(f"Configuration saved to: {Colors.DIM}{CONFIG_FILE}{Colors.RESET}")
     print()
     print("Run again to see your usage:")
-    print(f"  {Colors.CYAN}claude-usage{Colors.RESET}           - Current usage")
-    print(f"  {Colors.CYAN}claude-usage -a{Colors.RESET}        - With analytics")
-    print(f"  {Colors.CYAN}claude-usage --setup{Colors.RESET}   - Re-run setup")
+    print(f"  {Colors.CYAN}claude-watch{Colors.RESET}           - Current usage")
+    print(f"  {Colors.CYAN}claude-watch -a{Colors.RESET}        - With analytics")
+    print(f"  {Colors.CYAN}claude-watch --setup{Colors.RESET}   - Re-run setup")
+    print(f"  {Colors.CYAN}ccw{Colors.RESET}                    - Short alias (add to shell config)")
     print()
 
 def show_config():
@@ -589,7 +594,7 @@ def fetch_usage() -> dict:
             "Authorization": f"Bearer {token}",
             "anthropic-beta": API_BETA_HEADER,
             "Content-Type": "application/json",
-            "User-Agent": "claude-usage-cli/1.0"
+            "User-Agent": "claude-watch/1.0"
         }
     )
 
@@ -633,7 +638,7 @@ def fetch_admin_usage(admin_key: str, days: int = 180) -> list:
                 "x-api-key": admin_key,
                 "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json",
-                "User-Agent": "claude-usage-cli/1.0"
+                "User-Agent": "claude-watch/1.0"
             }
         )
 
@@ -1385,15 +1390,16 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Display Claude Code usage limits",
+        description="Monitor Claude Code subscription usage limits",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  claude-usage              Show usage in formatted view
-  claude-usage --analytics  Show detailed analytics and trends
-  claude-usage --setup      Run interactive setup wizard
-  claude-usage --config     Show current configuration
-  claude-usage --json       Output raw JSON data
+  claude-watch              Show usage in formatted view
+  claude-watch --analytics  Show detailed analytics and trends
+  claude-watch --setup      Run interactive setup wizard
+  claude-watch --config     Show current configuration
+  claude-watch --json       Output raw JSON data
+  ccw                       Short alias (add to shell config)
 
 Setup:
   On first run, you'll be prompted to configure:
@@ -1437,7 +1443,7 @@ Setup:
     # First run check
     if not config.get("setup_completed") and sys.stdin.isatty():
         print()
-        print(f"{Colors.BOLD}{Colors.CYAN}Welcome to Claude Usage CLI!{Colors.RESET}")
+        print(f"{Colors.BOLD}{Colors.CYAN}Welcome to Claude Code Watch!{Colors.RESET}")
         print()
         if prompt_yes_no("Would you like to run the setup wizard?", default=True):
             run_setup()

@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import functions from main script
-exec(open(Path(__file__).parent.parent / "claude-usage").read())
+exec(open(Path(__file__).parent.parent / "claude-watch").read())
 
 
 class TestLoadConfig:
