@@ -7,6 +7,7 @@ Tests cover:
 - get_access_token() - token extraction
 - Error handling (auth, network, parsing)
 """
+
 import importlib.util
 import json
 import sys
@@ -174,12 +175,8 @@ class TestGetCredentials:
 
         # Simulate keychain returning None (not found)
         with patch.object(claude_watch.platform, "system", return_value="Darwin"):
-            with patch.object(
-                claude_watch, "get_macos_keychain_credentials", return_value=None
-            ):
-                with patch.object(
-                    claude_watch, "get_credentials_path", return_value=creds_file
-                ):
+            with patch.object(claude_watch, "get_macos_keychain_credentials", return_value=None):
+                with patch.object(claude_watch, "get_credentials_path", return_value=creds_file):
                     result = claude_watch.get_credentials()
 
         assert result["claudeAiOauth"]["accessToken"] == "test-access-token-12345"
@@ -214,9 +211,7 @@ class TestGetAccessToken:
 
     def test_missing_token(self, credentials_missing_token):
         """Test error when access token is missing."""
-        with patch.object(
-            claude_watch, "get_credentials", return_value=credentials_missing_token
-        ):
+        with patch.object(claude_watch, "get_credentials", return_value=credentials_missing_token):
             with pytest.raises(ValueError) as exc_info:
                 claude_watch.get_access_token()
 
@@ -288,11 +283,13 @@ class TestHistoryManagement:
         # Create recent history entries (within MAX_HISTORY_DAYS)
         recent_history = []
         for i in range(5):
-            recent_history.append({
-                "timestamp": (datetime.now(timezone.utc) - timedelta(hours=i)).isoformat(),
-                "five_hour": 25.0 + i * 2,
-                "seven_day": 10.0 + i * 0.5,
-            })
+            recent_history.append(
+                {
+                    "timestamp": (datetime.now(timezone.utc) - timedelta(hours=i)).isoformat(),
+                    "five_hour": 25.0 + i * 2,
+                    "seven_day": 10.0 + i * 0.5,
+                }
+            )
 
         with patch.object(claude_watch, "HISTORY_FILE", history_file):
             claude_watch.save_history(recent_history)
@@ -309,9 +306,7 @@ class TestHistoryManagement:
 
         # Create history with old and new entries
         old_entry = {
-            "timestamp": (
-                datetime.now(timezone.utc) - timedelta(days=100)
-            ).isoformat(),
+            "timestamp": (datetime.now(timezone.utc) - timedelta(days=100)).isoformat(),
             "five_hour": 50.0,
             "seven_day": 20.0,
         }

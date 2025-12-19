@@ -1,6 +1,7 @@
 """
 Tests for time parsing and formatting functions.
 """
+
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path

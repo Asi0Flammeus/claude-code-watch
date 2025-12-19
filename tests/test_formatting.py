@@ -1,6 +1,7 @@
 """
 Tests for display formatting functions.
 """
+
 import sys
 from pathlib import Path
 
@@ -124,7 +125,7 @@ class TestSparkline:
         timestamps = [
             "2024-12-19T10:00:00+00:00",
             "2024-12-19T11:00:00+00:00",
-            "2024-12-19T12:00:00+00:00"
+            "2024-12-19T12:00:00+00:00",
         ]
         sparkline, time_axis = make_sparkline(values, timestamps, period_hours=24)
         assert isinstance(sparkline, str)

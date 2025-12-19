@@ -1,6 +1,7 @@
 """
 Tests for configuration management functions.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -84,6 +85,7 @@ class TestSaveConfig:
 
         # Check file permissions (0o600 = owner read/write only)
         import stat
+
         mode = config_file.stat().st_mode
         assert mode & 0o777 == 0o600
 
@@ -99,7 +101,7 @@ class TestDefaultConfig:
             "auto_collect",
             "collect_interval_hours",
             "setup_completed",
-            "subscription_plan"
+            "subscription_plan",
         ]
         for key in required_keys:
             assert key in DEFAULT_CONFIG

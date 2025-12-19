@@ -1,6 +1,7 @@
 """
 Pytest fixtures for claude-watch tests.
 """
+
 import json
 import sys
 from datetime import datetime, timedelta, timezone
@@ -22,6 +23,7 @@ with open(FIXTURES_DIR / "api_responses.json") as f:
 # ═══════════════════════════════════════════════════════════════════════════════
 # API Response Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def usage_normal():
@@ -51,6 +53,7 @@ def usage_empty():
 # History Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def history_sample():
     """Sample history with 5 data points."""
@@ -75,13 +78,15 @@ def history_large():
         five_hour = 20 + (i % 30) + (i % 7) * 3  # 20-80% range
         seven_day = 5 + (i // 10) * 2  # Slowly increasing
 
-        history.append({
-            "timestamp": timestamp.isoformat(),
-            "five_hour": min(five_hour, 100),
-            "seven_day": min(seven_day, 100),
-            "seven_day_sonnet": five_hour * 0.3,
-            "seven_day_opus": None
-        })
+        history.append(
+            {
+                "timestamp": timestamp.isoformat(),
+                "five_hour": min(five_hour, 100),
+                "seven_day": min(seven_day, 100),
+                "seven_day_sonnet": five_hour * 0.3,
+                "seven_day_opus": None,
+            }
+        )
 
     return history
 
@@ -89,6 +94,7 @@ def history_large():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Credentials Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def credentials_valid():
@@ -106,6 +112,7 @@ def credentials_missing_token():
 # Config Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def config_default():
     """Default configuration."""
@@ -121,6 +128,7 @@ def config_max():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Mock Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def mock_fetch_usage(usage_normal):
@@ -146,6 +154,7 @@ def mock_urlopen():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Temporary File Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def tmp_config_file(tmp_path, config_default):
@@ -175,6 +184,7 @@ def tmp_credentials_file(tmp_path, credentials_valid):
 # Time Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def fixed_now():
     """Fixed datetime for reproducible tests."""
@@ -195,40 +205,53 @@ def mock_now(fixed_now):
 # CLI Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def cli_args_default():
     """Default CLI arguments."""
-    return type("Args", (), {
-        "json": False,
-        "analytics": False,
-        "setup": False,
-        "config": False,
-        "no_color": False,
-        "no_record": False,
-    })()
+    return type(
+        "Args",
+        (),
+        {
+            "json": False,
+            "analytics": False,
+            "setup": False,
+            "config": False,
+            "no_color": False,
+            "no_record": False,
+        },
+    )()
 
 
 @pytest.fixture
 def cli_args_json():
     """CLI arguments with JSON output."""
-    return type("Args", (), {
-        "json": True,
-        "analytics": False,
-        "setup": False,
-        "config": False,
-        "no_color": False,
-        "no_record": False,
-    })()
+    return type(
+        "Args",
+        (),
+        {
+            "json": True,
+            "analytics": False,
+            "setup": False,
+            "config": False,
+            "no_color": False,
+            "no_record": False,
+        },
+    )()
 
 
 @pytest.fixture
 def cli_args_analytics():
     """CLI arguments with analytics mode."""
-    return type("Args", (), {
-        "json": False,
-        "analytics": True,
-        "setup": False,
-        "config": False,
-        "no_color": False,
-        "no_record": False,
-    })()
+    return type(
+        "Args",
+        (),
+        {
+            "json": False,
+            "analytics": True,
+            "setup": False,
+            "config": False,
+            "no_color": False,
+            "no_record": False,
+        },
+    )()
