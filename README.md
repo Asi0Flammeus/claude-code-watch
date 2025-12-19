@@ -4,13 +4,30 @@ A command-line tool to monitor your Claude Code subscription usage, similar to [
 
 ## Features
 
-- **Real-time usage** - Session (5h) and weekly limits with progress bars
-- **Analytics** - Historical trends, sparklines, peak usage patterns
-- **Cost analysis** - Compare API costs vs subscription value (Pro/Max)
-- **Auto-collection** - Systemd timer for hourly usage tracking
-- **Admin API support** - Organization-level usage data (optional)
-- **Cross-platform** - Linux, macOS, Windows
-- **Zero dependencies** - Python stdlib only
+### Implemented
+
+- [x] **Real-time usage** - Session (5h) and weekly limits with progress bars
+- [x] **Analytics mode** - Historical trends, sparklines, peak usage patterns
+- [x] **Cost analysis** - Compare API costs vs subscription value (Pro/Max)
+- [x] **Auto-collection** - Systemd timer for hourly usage tracking
+- [x] **Admin API** - Organization-level usage data (optional)
+- [x] **JSON output** - Machine-readable output for scripting
+- [x] **Setup wizard** - Interactive configuration
+- [x] **Cross-platform** - Linux, macOS, Windows
+- [x] **Zero dependencies** - Python stdlib only
+
+### Roadmap
+
+- [ ] [**Shell prompt**](docs/FEATURES.md#1-shell-prompt-integration---prompt) - Compact output for PS1/starship/oh-my-zsh
+- [ ] [**Watch mode**](docs/FEATURES.md#2-watch-mode---watch) - Live updating display
+- [ ] [**Notifications**](docs/FEATURES.md#3-desktop-notifications---notify) - Desktop alerts at usage thresholds
+- [ ] [**Tmux integration**](docs/FEATURES.md#4-tmux-integration---tmux) - Status bar with session % and reset time
+- [ ] [**Hook generator**](docs/FEATURES.md#5-hook-generator---generate-hook) - Claude Code pre-session warnings
+- [ ] [**Forecast**](docs/FEATURES.md#6-enhanced-forecast---forecast) - Predict when limits will be hit
+- [ ] [**HTML reports**](docs/FEATURES.md#7-html-report---report) - Weekly/monthly usage reports
+- [ ] [**CSV export**](docs/FEATURES.md#8-csv-export---export) - Export history for external tools
+
+See [docs/FEATURES.md](docs/FEATURES.md) for detailed specifications.
 
 ## Quick Start
 
