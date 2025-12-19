@@ -22,9 +22,16 @@ class TestGetPeriodStats:
         result = get_period_stats([], 24, "five_hour")
         assert result["count"] == 0
 
-    def test_with_data(self, history_sample):
+    def test_with_data(self):
         """Test with sample history data."""
-        result = get_period_stats(history_sample, 24, "five_hour")
+        # Use fresh timestamps within the last 24 hours
+        now = datetime.now(timezone.utc)
+        history = [
+            {"timestamp": (now - timedelta(hours=1)).isoformat(), "five_hour": 25.0},
+            {"timestamp": (now - timedelta(hours=2)).isoformat(), "five_hour": 30.0},
+            {"timestamp": (now - timedelta(hours=3)).isoformat(), "five_hour": 35.0},
+        ]
+        result = get_period_stats(history, 24, "five_hour")
         assert result["count"] > 0
         assert "min" in result
         assert "max" in result

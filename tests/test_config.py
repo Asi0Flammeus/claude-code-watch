@@ -4,7 +4,6 @@ Tests for configuration management functions.
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -18,33 +17,40 @@ exec(open(Path(__file__).parent.parent / "claude-usage").read())
 class TestLoadConfig:
     """Tests for load_config function."""
 
-    def test_returns_default_when_no_file(self, tmp_path):
+    def test_returns_default_when_no_file(self, tmp_path, monkeypatch):
         """Test returns default config when file doesn't exist."""
-        with patch.object(Path, "exists", return_value=False):
-            with patch("claude_usage.CONFIG_FILE", tmp_path / "nonexistent.json"):
-                # Load should return defaults
-                result = load_config()
-                assert result == DEFAULT_CONFIG
+        # Monkeypatch the global CONFIG_FILE
+        nonexistent = tmp_path / "nonexistent.json"
+        monkeypatch.setattr("__main__.CONFIG_FILE", nonexistent)
+        # Since we use exec(), CONFIG_FILE is in globals
+        globals()["CONFIG_FILE"] = nonexistent
 
-    def test_loads_existing_config(self, tmp_config_file):
+        result = load_config()
+        assert result == DEFAULT_CONFIG
+
+    def test_loads_existing_config(self, tmp_path, monkeypatch):
         """Test loading existing config file."""
-        with patch("claude_usage.CONFIG_FILE", tmp_config_file):
-            result = load_config()
-            assert "subscription_plan" in result
+        config_file = tmp_path / "config.json"
+        config_file.write_text(json.dumps({"subscription_plan": "max_5x", "setup_completed": True}))
+        globals()["CONFIG_FILE"] = config_file
+
+        result = load_config()
+        assert result["subscription_plan"] == "max_5x"
 
     def test_merges_with_defaults(self, tmp_path):
         """Test that loaded config is merged with defaults."""
         # Create partial config
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps({"subscription_plan": "max_5x"}))
+        globals()["CONFIG_FILE"] = config_file
 
-        with patch("claude_usage.CONFIG_FILE", config_file):
-            result = load_config()
-            # Should have the custom value
-            assert result["subscription_plan"] == "max_5x"
-            # Should have default values for missing keys
-            assert "admin_api_key" in result
-            assert "auto_collect" in result
+        result = load_config()
+        # Should have the custom value
+        assert result["subscription_plan"] == "max_5x"
+        # Should have default values for missing keys
+        assert "admin_api_key" in result
+        assert "auto_collect" in result
+        assert result["admin_api_key"] is None  # Default value
 
 
 class TestSaveConfig:
@@ -53,23 +59,35 @@ class TestSaveConfig:
     def test_creates_parent_directory(self, tmp_path):
         """Test that parent directory is created."""
         config_file = tmp_path / "subdir" / "config.json"
+        globals()["CONFIG_FILE"] = config_file
 
-        with patch("claude_usage.CONFIG_FILE", config_file):
-            save_config({"test": "value"})
+        save_config({"test": "value"})
 
         assert config_file.exists()
 
     def test_saves_json(self, tmp_path):
         """Test that config is saved as valid JSON."""
         config_file = tmp_path / "config.json"
+        globals()["CONFIG_FILE"] = config_file
 
-        with patch("claude_usage.CONFIG_FILE", config_file):
-            save_config({"subscription_plan": "pro", "auto_collect": True})
+        save_config({"subscription_plan": "pro", "auto_collect": True})
 
         # Read and parse
         loaded = json.loads(config_file.read_text())
         assert loaded["subscription_plan"] == "pro"
         assert loaded["auto_collect"] is True
+
+    def test_sets_file_permissions(self, tmp_path):
+        """Test that config file has secure permissions."""
+        config_file = tmp_path / "config.json"
+        globals()["CONFIG_FILE"] = config_file
+
+        save_config({"admin_api_key": "secret"})
+
+        # Check file permissions (0o600 = owner read/write only)
+        import stat
+        mode = config_file.stat().st_mode
+        assert mode & 0o777 == 0o600
 
 
 class TestDefaultConfig:
