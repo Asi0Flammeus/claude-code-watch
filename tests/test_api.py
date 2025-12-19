@@ -7,10 +7,11 @@ Tests cover:
 - get_access_token() - token extraction
 - Error handling (auth, network, parsing)
 """
+import importlib.util
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 
 import pytest
@@ -19,8 +20,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # We need to import the module dynamically since it's an executable without .py extension
-import importlib.util
-
 spec = importlib.util.spec_from_loader(
     "claude_watch",
     loader=None,
@@ -282,7 +281,7 @@ class TestHistoryManagement:
 
     def test_save_history(self, tmp_path):
         """Test saving history to file."""
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         history_file = tmp_path / ".usage_history.json"
 
@@ -304,8 +303,9 @@ class TestHistoryManagement:
 
     def test_save_history_prunes_old(self, tmp_path):
         """Test that save_history prunes entries older than MAX_HISTORY_DAYS."""
+        from datetime import datetime, timedelta, timezone
+
         history_file = tmp_path / ".usage_history.json"
-        from datetime import datetime, timezone, timedelta
 
         # Create history with old and new entries
         old_entry = {

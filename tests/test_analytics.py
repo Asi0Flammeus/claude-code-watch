@@ -2,7 +2,7 @@
 Tests for analytics calculation functions.
 """
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -154,7 +154,7 @@ class TestSubscriptionPlans:
 
     def test_plan_has_required_fields(self):
         """Test plans have required fields."""
-        for plan_id, plan in SUBSCRIPTION_PLANS.items():
+        for _plan_id, plan in SUBSCRIPTION_PLANS.items():
             assert "name" in plan
             assert "cost" in plan
             assert "messages_5h" in plan

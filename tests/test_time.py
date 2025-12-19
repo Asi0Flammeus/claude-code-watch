@@ -2,7 +2,7 @@
 Tests for time parsing and formatting functions.
 """
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Add project root to path
