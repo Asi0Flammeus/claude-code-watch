@@ -29,7 +29,7 @@ spec = importlib.util.spec_from_loader(
 claude_watch = importlib.util.module_from_spec(spec)
 
 # Execute the module to load its contents
-with open(Path(__file__).parent.parent / "claude-watch") as f:
+with open(Path(__file__).parent.parent / "claude-watch", encoding="utf-8") as f:
     exec(f.read(), claude_watch.__dict__)
 
 
