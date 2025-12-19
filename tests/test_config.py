@@ -17,18 +17,16 @@ exec(open(Path(__file__).parent.parent / "claude-usage").read())
 class TestLoadConfig:
     """Tests for load_config function."""
 
-    def test_returns_default_when_no_file(self, tmp_path, monkeypatch):
+    def test_returns_default_when_no_file(self, tmp_path):
         """Test returns default config when file doesn't exist."""
-        # Monkeypatch the global CONFIG_FILE
+        # Point CONFIG_FILE to a nonexistent path
         nonexistent = tmp_path / "nonexistent.json"
-        monkeypatch.setattr("__main__.CONFIG_FILE", nonexistent)
-        # Since we use exec(), CONFIG_FILE is in globals
         globals()["CONFIG_FILE"] = nonexistent
 
         result = load_config()
         assert result == DEFAULT_CONFIG
 
-    def test_loads_existing_config(self, tmp_path, monkeypatch):
+    def test_loads_existing_config(self, tmp_path):
         """Test loading existing config file."""
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps({"subscription_plan": "max_5x", "setup_completed": True}))
