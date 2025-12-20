@@ -213,7 +213,9 @@ def save_config(config: dict):
 # Update System
 # ═══════════════════════════════════════════════════════════════════════════════
 
-PYPI_URL = "https://pypi.org/pypi/claude-watch/json"
+# GitHub releases API (no PyPI dependency)
+GITHUB_REPO = "Asi0Flammeus/claude-code-watch"
+GITHUB_RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 
 def parse_version(version_str: str) -> Tuple[int, int, int, str]:
@@ -314,23 +316,28 @@ def detect_installation_method() -> Optional[str]:
 
 
 def fetch_latest_version() -> Optional[str]:
-    """Fetch the latest version from PyPI.
+    """Fetch the latest version from GitHub releases.
 
     Returns:
-        Latest version string, or None if fetch failed.
+        Latest version string (without 'v' prefix), or None if fetch failed.
     """
     req = Request(
-        PYPI_URL,
+        GITHUB_RELEASES_URL,
         headers={
-            "Accept": "application/json",
+            "Accept": "application/vnd.github+json",
             "User-Agent": f"claude-watch/{__version__}",
+            "X-GitHub-Api-Version": "2022-11-28",
         },
     )
 
     try:
         with urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode())
-            return data.get("info", {}).get("version")
+            tag_name = data.get("tag_name", "")
+            # Remove 'v' prefix if present (e.g., 'v0.1.0' -> '0.1.0')
+            if tag_name.startswith("v"):
+                tag_name = tag_name[1:]
+            return tag_name if tag_name else None
     except (HTTPError, URLError, json.JSONDecodeError, KeyError):
         return None
 
@@ -390,7 +397,7 @@ def check_for_update(quiet: bool = False) -> Optional[dict]:
     latest = fetch_latest_version()
     if latest is None:
         if not quiet:
-            print(f"{Colors.YELLOW}Could not check for updates (PyPI unreachable){Colors.RESET}")
+            print(f"{Colors.YELLOW}Could not check for updates (GitHub unreachable or no releases){Colors.RESET}")
         return None
 
     current = __version__

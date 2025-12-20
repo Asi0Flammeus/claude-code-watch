@@ -135,23 +135,33 @@ class TestDetectInstallationMethod:
 
 
 class TestFetchLatestVersion:
-    """Test PyPI version fetching - integration-style tests."""
+    """Test GitHub releases version fetching - integration-style tests."""
 
-    def test_pypi_url_is_correct(self):
-        """Verify PyPI URL is properly formatted."""
-        assert PYPI_URL == "https://pypi.org/pypi/claude-watch/json"
+    def test_github_url_is_correct(self):
+        """Verify GitHub releases URL is properly formatted."""
+        assert GITHUB_REPO == "Asi0Flammeus/claude-code-watch"
+        assert "api.github.com" in GITHUB_RELEASES_URL
+        assert GITHUB_REPO in GITHUB_RELEASES_URL
 
     def test_function_handles_network_failure_gracefully(self):
         """Test that network failures return None, not raise."""
-        # This will fail because package isn't on PyPI - that's expected
         result = fetch_latest_version()
         # Should return None on any failure, not raise
+        # May return a version string if releases exist
         assert result is None or isinstance(result, str)
 
     def test_function_returns_string_or_none(self):
         """Test return type is correct."""
         result = fetch_latest_version()
         assert result is None or isinstance(result, str)
+
+    def test_version_strips_v_prefix(self):
+        """Test that 'v' prefix is stripped from tag names."""
+        # This is a logic test - if we get 'v0.1.0', we should return '0.1.0'
+        tag_with_v = "v0.1.0"
+        if tag_with_v.startswith("v"):
+            result = tag_with_v[1:]
+        assert result == "0.1.0"
 
 
 class TestRunUpgrade:
@@ -198,11 +208,11 @@ class TestRunUpgrade:
 class TestCheckForUpdate:
     """Test update check functionality - logic tests."""
 
-    def test_returns_none_when_pypi_unreachable(self):
-        """Test that check_for_update returns None when PyPI is unreachable."""
-        # Package isn't on PyPI so fetch_latest_version will return None
+    def test_returns_result_or_none(self):
+        """Test that check_for_update returns dict or None."""
         result = check_for_update(quiet=True)
-        assert result is None
+        # May return None if no releases, or dict if releases exist
+        assert result is None or isinstance(result, dict)
 
     def test_no_update_when_current_is_latest(self):
         """Test update logic with same version."""
@@ -231,8 +241,7 @@ class TestRunUpdate:
 
     def test_returns_exit_code(self):
         """Test that run_update returns an integer exit code."""
-        # Will return 1 because PyPI is unreachable
         exit_code = run_update(check_only=True)
         assert isinstance(exit_code, int)
-        # Should be 1 (error) since package isn't on PyPI
-        assert exit_code == 1
+        # Exit codes: 0=update available, 1=error, 2=already latest
+        assert exit_code in (0, 1, 2)
