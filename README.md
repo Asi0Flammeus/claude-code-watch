@@ -99,6 +99,49 @@ With `-a` flag, shows:
 - **Cost comparison** - API equivalent vs subscription value
 - **Recommendations** - Optimal plan based on usage
 
+## Shell Completions
+
+Tab completion is available for Bash, Zsh, and Fish shells.
+
+### Bash
+
+Add to `~/.bashrc`:
+
+```bash
+source /path/to/claude-watch/completions/claude-watch.bash
+```
+
+Or copy to system completions:
+
+```bash
+sudo cp completions/claude-watch.bash /etc/bash_completion.d/claude-watch
+```
+
+### Zsh
+
+Add to `~/.zshrc` (before `compinit`):
+
+```zsh
+fpath=(/path/to/claude-watch/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+Or copy to a directory in your `$fpath`:
+
+```bash
+cp completions/claude-watch.zsh /usr/local/share/zsh/site-functions/_claude-watch
+```
+
+### Fish
+
+Copy to Fish completions directory:
+
+```bash
+cp completions/claude-watch.fish ~/.config/fish/completions/
+```
+
+Completions also work for the `ccw` alias.
+
 ## Requirements
 
 - **Python 3.8+**
