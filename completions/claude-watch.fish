@@ -19,6 +19,7 @@ complete -c claude-watch -s V -l version -d 'Show version and system information
 complete -c claude-watch -s v -l verbose -d 'Show detailed output including timing and cache info'
 complete -c claude-watch -s q -l quiet -d 'Suppress all output except errors'
 complete -c claude-watch -l dry-run -d 'Show what would be done without making API calls'
+complete -c claude-watch -s U -l update -d 'Check for and install updates' -x -a 'check'
 
 # Also complete for ccw alias
 complete -c ccw -f
@@ -34,3 +35,4 @@ complete -c ccw -s V -l version -d 'Show version and system information'
 complete -c ccw -s v -l verbose -d 'Show detailed output including timing and cache info'
 complete -c ccw -s q -l quiet -d 'Suppress all output except errors'
 complete -c ccw -l dry-run -d 'Show what would be done without making API calls'
+complete -c ccw -s U -l update -d 'Check for and install updates' -x -a 'check'

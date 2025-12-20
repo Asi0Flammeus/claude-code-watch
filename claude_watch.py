@@ -15,11 +15,12 @@ Commands:
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from collections import defaultdict
@@ -206,6 +207,264 @@ def save_config(config: dict):
         json.dump(config, f, indent=2)
     # Secure the file (contains API key)
     os.chmod(CONFIG_FILE, 0o600)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Update System
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PYPI_URL = "https://pypi.org/pypi/claude-watch/json"
+
+
+def parse_version(version_str: str) -> Tuple[int, int, int, str]:
+    """Parse semantic version string into comparable tuple.
+
+    Returns (major, minor, patch, prerelease) where prerelease is empty string
+    for stable releases or the prerelease suffix (e.g., 'alpha.1', 'beta.2').
+    """
+    # Match semantic version with optional prerelease
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$", version_str.strip())
+    if not match:
+        return (0, 0, 0, version_str)  # Fallback for unparseable versions
+
+    major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    prerelease = match.group(4) or ""
+    return (major, minor, patch, prerelease)
+
+
+def compare_versions(v1: str, v2: str) -> int:
+    """Compare two version strings.
+
+    Returns:
+        -1 if v1 < v2
+         0 if v1 == v2
+         1 if v1 > v2
+    """
+    p1 = parse_version(v1)
+    p2 = parse_version(v2)
+
+    # Compare major, minor, patch
+    for i in range(3):
+        if p1[i] < p2[i]:
+            return -1
+        if p1[i] > p2[i]:
+            return 1
+
+    # If same major.minor.patch, compare prerelease
+    # No prerelease (stable) > any prerelease
+    if not p1[3] and p2[3]:
+        return 1  # v1 is stable, v2 is prerelease
+    if p1[3] and not p2[3]:
+        return -1  # v1 is prerelease, v2 is stable
+    if p1[3] < p2[3]:
+        return -1
+    if p1[3] > p2[3]:
+        return 1
+
+    return 0
+
+
+def detect_installation_method() -> Optional[str]:
+    """Detect how claude-watch was installed.
+
+    Returns:
+        'uv' - installed via uv tool
+        'pipx' - installed via pipx
+        'pip' - installed via pip
+        None - unknown/development installation
+    """
+    # Check for uv tool installation
+    try:
+        result = subprocess.run(
+            ["uv", "tool", "list"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0 and "claude-watch" in result.stdout:
+            return "uv"
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        pass
+
+    # Check for pipx installation
+    try:
+        result = subprocess.run(
+            ["pipx", "list"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0 and "claude-watch" in result.stdout:
+            return "pipx"
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        pass
+
+    # Check if installed via pip (in site-packages)
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("claude_watch")
+        if spec and spec.origin:
+            origin = str(spec.origin)
+            if "site-packages" in origin:
+                return "pip"
+    except (ImportError, AttributeError):
+        pass
+
+    return None
+
+
+def fetch_latest_version() -> Optional[str]:
+    """Fetch the latest version from PyPI.
+
+    Returns:
+        Latest version string, or None if fetch failed.
+    """
+    req = Request(
+        PYPI_URL,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": f"claude-watch/{__version__}",
+        },
+    )
+
+    try:
+        with urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return data.get("info", {}).get("version")
+    except (HTTPError, URLError, json.JSONDecodeError, KeyError):
+        return None
+
+
+def run_upgrade(method: str) -> Tuple[bool, str]:
+    """Run the upgrade command for the detected installation method.
+
+    Args:
+        method: Installation method ('uv', 'pipx', or 'pip')
+
+    Returns:
+        (success, message) tuple
+    """
+    commands = {
+        "uv": ["uv", "tool", "upgrade", "claude-watch"],
+        "pipx": ["pipx", "upgrade", "claude-watch"],
+        "pip": [sys.executable, "-m", "pip", "install", "--upgrade", "claude-watch"],
+    }
+
+    cmd = commands.get(method)
+    if not cmd:
+        return False, f"Unknown installation method: {method}"
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            return True, f"Successfully upgraded via {method}"
+        else:
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            return False, f"Upgrade failed: {error_msg}"
+    except subprocess.TimeoutExpired:
+        return False, "Upgrade timed out after 120 seconds"
+    except FileNotFoundError:
+        return False, f"Command not found: {cmd[0]}"
+    except subprocess.SubprocessError as e:
+        return False, f"Upgrade failed: {e}"
+
+
+def check_for_update(quiet: bool = False) -> Optional[dict]:
+    """Check if an update is available.
+
+    Args:
+        quiet: If True, suppress output messages
+
+    Returns:
+        Dict with 'current', 'latest', 'update_available', 'method' keys,
+        or None if check failed.
+    """
+    if not quiet:
+        print("Checking for updates...")
+
+    latest = fetch_latest_version()
+    if latest is None:
+        if not quiet:
+            print(f"{Colors.YELLOW}Could not check for updates (PyPI unreachable){Colors.RESET}")
+        return None
+
+    current = __version__
+    update_available = compare_versions(current, latest) < 0
+    method = detect_installation_method()
+
+    return {
+        "current": current,
+        "latest": latest,
+        "update_available": update_available,
+        "method": method,
+    }
+
+
+def run_update(check_only: bool = False) -> int:
+    """Run the update process.
+
+    Args:
+        check_only: If True, only check for updates without installing
+
+    Returns:
+        Exit code (0 for success, 1 for error, 2 for no update available)
+    """
+    result = check_for_update(quiet=False)
+    if result is None:
+        return 1
+
+    current = result["current"]
+    latest = result["latest"]
+    update_available = result["update_available"]
+    method = result["method"]
+
+    print()
+    print(f"  Current version: {Colors.CYAN}{current}{Colors.RESET}")
+    print(f"  Latest version:  {Colors.CYAN}{latest}{Colors.RESET}")
+    print()
+
+    if not update_available:
+        print(f"{Colors.GREEN}✓ You are running the latest version{Colors.RESET}")
+        return 2
+
+    print(f"{Colors.YELLOW}Update available: {current} → {latest}{Colors.RESET}")
+    print()
+
+    if check_only:
+        if method:
+            print(f"Run {Colors.CYAN}claude-watch --update{Colors.RESET} to update via {method}")
+        else:
+            print("Installation method not detected. Manual update may be required.")
+        return 0
+
+    # Proceed with upgrade
+    if method is None:
+        print(f"{Colors.YELLOW}Could not detect installation method.{Colors.RESET}")
+        print()
+        print("Please update manually using one of:")
+        print(f"  {Colors.CYAN}uv tool upgrade claude-watch{Colors.RESET}")
+        print(f"  {Colors.CYAN}pipx upgrade claude-watch{Colors.RESET}")
+        print(f"  {Colors.CYAN}pip install --upgrade claude-watch{Colors.RESET}")
+        return 1
+
+    print(f"Updating via {Colors.CYAN}{method}{Colors.RESET}...")
+    print()
+
+    success, message = run_upgrade(method)
+
+    if success:
+        print(f"{Colors.GREEN}✓ {message}{Colors.RESET}")
+        print()
+        print(f"Restart your shell or run {Colors.CYAN}claude-watch --version{Colors.RESET} to verify.")
+        return 0
+    else:
+        print(f"{Colors.RED}✗ {message}{Colors.RESET}")
+        return 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1840,6 +2099,8 @@ Examples:
   claude-watch --quiet      Silent mode for scripts
   claude-watch --dry-run    Test without API calls (uses mock data)
   claude-watch --version    Show version and system info
+  claude-watch --update     Check for and install updates
+  claude-watch -U check     Check for updates without installing
   ccw                       Short alias (add to shell config)
 
 Setup:
@@ -1893,6 +2154,14 @@ Setup:
         action="store_true",
         help="Show what would be done without making API calls (uses mock data)",
     )
+    parser.add_argument(
+        "--update",
+        "-U",
+        nargs="?",
+        const="update",
+        metavar="check",
+        help="Check for and install updates. Use --update check to only check without installing.",
+    )
 
     args = parser.parse_args()
 
@@ -1905,6 +2174,12 @@ Setup:
     if args.version:
         print(f"claude-watch {__version__} (Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}, {platform.system()} {platform.machine()})")
         return
+
+    # Handle update flag
+    if args.update is not None:
+        check_only = args.update == "check"
+        exit_code = run_update(check_only=check_only)
+        sys.exit(exit_code)
 
     # Handle setup and config commands
     if args.setup:

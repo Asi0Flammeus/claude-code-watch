@@ -22,6 +22,7 @@ _claude_watch() {
         '(-v --verbose)'{-v,--verbose}'[Show detailed output including timing and cache info]'
         '(-q --quiet)'{-q,--quiet}'[Suppress all output except errors]'
         '--dry-run[Show what would be done without making API calls]'
+        '(-U --update)'{-U,--update}'[Check for and install updates]:mode:(check)'
     )
 
     _arguments -s -S $opts

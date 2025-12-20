@@ -11,13 +11,18 @@ _claude_watch_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # All available options
-    opts="--help -h --json -j --analytics -a --setup -s --config -c --no-color --no-record --cache-ttl --version -V --verbose -v --quiet -q --dry-run"
+    opts="--help -h --json -j --analytics -a --setup -s --config -c --no-color --no-record --cache-ttl --version -V --verbose -v --quiet -q --dry-run --update -U"
 
     # Handle options that require arguments
     case "${prev}" in
         --cache-ttl)
             # Suggest common TTL values in seconds
             COMPREPLY=($(compgen -W "30 60 120 300" -- "${cur}"))
+            return 0
+            ;;
+        --update|-U)
+            # Suggest check option
+            COMPREPLY=($(compgen -W "check" -- "${cur}"))
             return 0
             ;;
     esac
