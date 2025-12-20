@@ -65,7 +65,7 @@ For a single-file install without package managers:
 ```bash
 # Download to ~/.local/bin (or any directory in your PATH)
 curl -o ~/.local/bin/claude-watch \
-  https://raw.githubusercontent.com/YOUR_REPO/claude-watch/main/claude_watch.py
+  https://raw.githubusercontent.com/Asi0Flammeus/claude-code-watch/main/claude_watch.py
 
 chmod +x ~/.local/bin/claude-watch
 
@@ -76,7 +76,7 @@ ln -s ~/.local/bin/claude-watch ~/.local/bin/ccw
 ### Option 4: From Source
 
 ```bash
-git clone https://github.com/YOUR_REPO/claude-watch.git
+git clone https://github.com/Asi0Flammeus/claude-code-watch.git
 cd claude-watch
 uv tool install .
 # or: pip install --user .

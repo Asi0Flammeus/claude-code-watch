@@ -39,9 +39,9 @@ claude-watch = "claude_watch:main"
 ccw = "claude_watch:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_REPO/claude-watch"
-Repository = "https://github.com/YOUR_REPO/claude-watch"
-Issues = "https://github.com/YOUR_REPO/claude-watch/issues"
+Homepage = "https://github.com/Asi0Flammeus/claude-code-watch"
+Repository = "https://github.com/Asi0Flammeus/claude-code-watch"
+Issues = "https://github.com/Asi0Flammeus/claude-code-watch/issues"
 
 [build-system]
 requires = ["hatchling"]
