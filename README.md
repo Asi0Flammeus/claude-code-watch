@@ -39,8 +39,8 @@ See [docs/FEATURES.md](docs/FEATURES.md) for detailed specifications.
 # Install uv if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install claude-watch
-uv tool install claude-watch
+# Install directly from GitHub
+uv tool install git+https://github.com/Asi0Flammeus/claude-code-watch
 
 # Run
 claude-watch           # Current usage
@@ -55,15 +55,14 @@ Update later with: `uv tool upgrade claude-watch`
 If you prefer [pipx](https://pipx.pypa.io/):
 
 ```bash
-pipx install claude-watch
+pipx install git+https://github.com/Asi0Flammeus/claude-code-watch
 ```
 
 ### Option 3: Direct Download
 
-For a single-file install without package managers:
+Single-file install without any package manager:
 
 ```bash
-# Download to ~/.local/bin (or any directory in your PATH)
 curl -o ~/.local/bin/claude-watch \
   https://raw.githubusercontent.com/Asi0Flammeus/claude-code-watch/main/claude_watch.py
 
@@ -71,15 +70,6 @@ chmod +x ~/.local/bin/claude-watch
 
 # Optional: create short alias
 ln -s ~/.local/bin/claude-watch ~/.local/bin/ccw
-```
-
-### Option 4: From Source
-
-```bash
-git clone https://github.com/Asi0Flammeus/claude-code-watch.git
-cd claude-watch
-uv tool install .
-# or: pip install --user .
 ```
 
 ## Quick Start
