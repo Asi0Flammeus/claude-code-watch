@@ -2100,7 +2100,8 @@ Examples:
   claude-watch              Show usage in formatted view
   claude-watch --analytics  Show detailed analytics and trends
   claude-watch --setup      Run interactive setup wizard
-  claude-watch --config     Show current configuration
+  claude-watch --config     Show current configuration (default: show)
+  claude-watch --config show  Explicitly show current configuration
   claude-watch --json       Output raw JSON data
   claude-watch --verbose    Show timing and cache info
   claude-watch --quiet      Silent mode for scripts
@@ -2127,7 +2128,14 @@ Setup:
         help="Show detailed analytics with historical trends",
     )
     parser.add_argument("--setup", "-s", action="store_true", help="Run interactive setup wizard")
-    parser.add_argument("--config", "-c", action="store_true", help="Show current configuration")
+    parser.add_argument(
+        "--config",
+        "-c",
+        nargs="?",
+        const="show",
+        metavar="COMMAND",
+        help="Configuration commands: show (default) - display current config",
+    )
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     parser.add_argument(
         "--no-record", action="store_true", help="Don't record this fetch to history"
@@ -2193,8 +2201,13 @@ Setup:
         run_setup()
         return
 
-    if args.config:
-        show_config()
+    if args.config is not None:
+        if args.config == "show":
+            show_config()
+        else:
+            print(f"{Colors.RED}Error: Unknown config command '{args.config}'{Colors.RESET}")
+            print(f"Available commands: show")
+            sys.exit(1)
         return
 
     # Load config
