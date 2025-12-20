@@ -76,6 +76,9 @@ class TestSaveConfig:
         assert loaded["subscription_plan"] == "pro"
         assert loaded["auto_collect"] is True
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Unix permissions not applicable on Windows"
+    )
     def test_sets_file_permissions(self, tmp_path):
         """Test that config file has secure permissions."""
         config_file = tmp_path / "config.json"
@@ -84,8 +87,6 @@ class TestSaveConfig:
         save_config({"admin_api_key": "secret"})
 
         # Check file permissions (0o600 = owner read/write only)
-        import stat
-
         mode = config_file.stat().st_mode
         assert mode & 0o777 == 0o600
 

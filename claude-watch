@@ -756,7 +756,14 @@ def format_relative_time(reset_at: str) -> str:
 def format_absolute_time(reset_at: str) -> str:
     reset_dt = parse_reset_time(reset_at)
     local_dt = reset_dt.astimezone()
-    return local_dt.strftime("%a %-I:%M %p").replace(" 0", " ")
+    # Use %I (with padding) and strip leading zero manually for cross-platform compatibility
+    # Windows doesn't support %-I, and %#I is Windows-only
+    formatted = local_dt.strftime("%a %I:%M %p")
+    # Remove leading zero from hour (e.g., "Mon 09:30 AM" -> "Mon 9:30 AM")
+    parts = formatted.split(" ")
+    if len(parts) >= 2 and parts[1].startswith("0"):
+        parts[1] = parts[1][1:]
+    return " ".join(parts)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
