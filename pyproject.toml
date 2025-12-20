@@ -1,6 +1,6 @@
 [project]
 name = "claude-watch"
-version = "1.0.0"
+version = "0.1.0"
 description = "CLI tool to monitor Claude Code subscription usage limits"
 readme = "README.md"
 license = {text = "MIT"}
