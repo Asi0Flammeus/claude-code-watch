@@ -907,6 +907,16 @@ def run_setup():
     print()
 
 
+def reset_config():
+    """Reset configuration to defaults."""
+    if CONFIG_FILE.exists():
+        CONFIG_FILE.unlink()
+    save_config(DEFAULT_CONFIG.copy())
+    print(f"{Colors.GREEN}✓ Configuration reset to defaults{Colors.RESET}")
+    print()
+    show_config()
+
+
 def show_config():
     """Display current configuration."""
     config = load_config()
@@ -2102,6 +2112,7 @@ Examples:
   claude-watch --setup      Run interactive setup wizard
   claude-watch --config     Show current configuration (default: show)
   claude-watch --config show  Explicitly show current configuration
+  claude-watch --config reset Reset configuration to defaults
   claude-watch --json       Output raw JSON data
   claude-watch --verbose    Show timing and cache info
   claude-watch --quiet      Silent mode for scripts
@@ -2134,7 +2145,7 @@ Setup:
         nargs="?",
         const="show",
         metavar="COMMAND",
-        help="Configuration commands: show (default) - display current config",
+        help="Configuration commands: show (default), reset",
     )
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     parser.add_argument(
@@ -2204,9 +2215,11 @@ Setup:
     if args.config is not None:
         if args.config == "show":
             show_config()
+        elif args.config == "reset":
+            reset_config()
         else:
             print(f"{Colors.RED}Error: Unknown config command '{args.config}'{Colors.RESET}")
-            print(f"Available commands: show")
+            print(f"Available commands: show, reset")
             sys.exit(1)
         return
 
