@@ -918,6 +918,34 @@ def fetch_usage_cached(cache_ttl: Optional[int] = None, silent: bool = False) ->
         CACHE_MAX_AGE = original_max_age
 
 
+def get_mock_usage_data() -> dict:
+    """Generate mock usage data for dry-run mode.
+
+    Returns realistic mock data that matches the API response format.
+    Useful for testing and development without making API calls.
+    """
+    now = datetime.now(timezone.utc)
+
+    return {
+        "five_hour": {
+            "utilization": 34.5,
+            "resets_at": (now + timedelta(hours=3, minutes=15)).isoformat().replace("+00:00", "Z"),
+        },
+        "seven_day": {
+            "utilization": 12.3,
+            "resets_at": (now + timedelta(days=4, hours=9)).isoformat().replace("+00:00", "Z"),
+        },
+        "seven_day_sonnet": {
+            "utilization": 8.1,
+            "resets_at": (now + timedelta(days=3, hours=15)).isoformat().replace("+00:00", "Z"),
+        },
+        "seven_day_opus": None,
+        "extra_usage": {
+            "is_enabled": False,
+        },
+    }
+
+
 def fetch_admin_usage(admin_key: str, days: int = 180) -> list:
     """Fetch historical usage from Admin API with pagination (default 180 days / 6 months)."""
     end_date = datetime.now(timezone.utc)
@@ -1810,6 +1838,7 @@ Examples:
   claude-watch --json       Output raw JSON data
   claude-watch --verbose    Show timing and cache info
   claude-watch --quiet      Silent mode for scripts
+  claude-watch --dry-run    Test without API calls (uses mock data)
   claude-watch --version    Show version and system info
   ccw                       Short alias (add to shell config)
 
@@ -1859,6 +1888,11 @@ Setup:
         action="store_true",
         help="Suppress all output except errors",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without making API calls (uses mock data)",
+    )
 
     args = parser.parse_args()
 
@@ -1901,35 +1935,44 @@ Setup:
 
         start_time = _time.time()
 
-        # Fetch current usage
-        cache_ttl = args.cache_ttl if args.cache_ttl is not None else CACHE_MAX_AGE
-        cached_data = load_cache()
-        cache_hit = cached_data is not None
-
-        if args.quiet:
-            # Quiet mode: no spinner, use cached fetch
-            data = fetch_usage_cached(cache_ttl=cache_ttl, silent=True)
-            if data is None:
-                sys.exit(1)  # Silent failure
+        # Handle dry-run mode
+        if args.dry_run:
+            if not args.quiet:
+                print(f"{Colors.YELLOW}[DRY-RUN]{Colors.RESET} Using mock data (no API calls)")
+                print()
+            data = get_mock_usage_data()
+            cache_hit = False
+            fetch_time = 0.0
         else:
-            if not args.verbose:
-                with Spinner("Fetching usage data"):
-                    data = fetch_usage_cached(cache_ttl=cache_ttl, silent=False)
-            else:
-                print(f"Fetching usage data (cache TTL: {cache_ttl}s)...")
-                data = fetch_usage_cached(cache_ttl=cache_ttl, silent=False)
+            # Fetch current usage
+            cache_ttl = args.cache_ttl if args.cache_ttl is not None else CACHE_MAX_AGE
+            cached_data = load_cache()
+            cache_hit = cached_data is not None
 
-        fetch_time = _time.time() - start_time
+            if args.quiet:
+                # Quiet mode: no spinner, use cached fetch
+                data = fetch_usage_cached(cache_ttl=cache_ttl, silent=True)
+                if data is None:
+                    sys.exit(1)  # Silent failure
+            else:
+                if not args.verbose:
+                    with Spinner("Fetching usage data"):
+                        data = fetch_usage_cached(cache_ttl=cache_ttl, silent=False)
+                else:
+                    print(f"Fetching usage data (cache TTL: {cache_ttl}s)...")
+                    data = fetch_usage_cached(cache_ttl=cache_ttl, silent=False)
+
+            fetch_time = _time.time() - start_time
 
         # Show verbose info
         if args.verbose:
-            cache_status = "HIT" if cache_hit else "MISS"
+            cache_status = "DRY-RUN" if args.dry_run else ("HIT" if cache_hit else "MISS")
             print(f"  Cache: {cache_status}")
             print(f"  Time: {fetch_time:.2f}s")
             print()
 
-        # Record to history
-        if not args.no_record:
+        # Record to history (skip in dry-run mode)
+        if not args.no_record and not args.dry_run:
             record_usage(data)
 
         history = load_history()

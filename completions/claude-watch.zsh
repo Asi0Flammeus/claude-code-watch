@@ -18,6 +18,10 @@ _claude_watch() {
         '--no-color[Disable colored output]'
         '--no-record[Do not record this fetch to history]'
         '--cache-ttl[Cache TTL in seconds]:seconds:(30 60 120 300)'
+        '(-V --version)'{-V,--version}'[Show version and system information]'
+        '(-v --verbose)'{-v,--verbose}'[Show detailed output including timing and cache info]'
+        '(-q --quiet)'{-q,--quiet}'[Suppress all output except errors]'
+        '--dry-run[Show what would be done without making API calls]'
     )
 
     _arguments -s -S $opts

@@ -51,7 +51,7 @@ class TestCLIHelp:
             capture_output=True,
             text=True,
         )
-        expected_args = ["--json", "--analytics", "--setup", "--config", "--no-color", "--no-record"]
+        expected_args = ["--json", "--analytics", "--setup", "--config", "--no-color", "--no-record", "--dry-run"]
         for arg in expected_args:
             assert arg in result.stdout, f"Missing argument {arg} in help output"
 
@@ -270,6 +270,96 @@ class TestCLIIntegration:
             text=True,
         )
         assert result.returncode == 0, f"Syntax error: {result.stderr}"
+
+
+class TestCLIDryRun:
+    """Tests for --dry-run mode."""
+
+    def test_dry_run_flag_exists(self):
+        """Test --dry-run flag is accepted."""
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--dry-run"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, f"dry-run failed: {result.stderr}"
+
+    def test_dry_run_shows_indicator(self):
+        """Test --dry-run shows DRY-RUN indicator."""
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--dry-run"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert "DRY-RUN" in result.stdout
+
+    def test_dry_run_shows_mock_data(self):
+        """Test --dry-run shows usage data (mock)."""
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--dry-run"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        # Should show usage bars
+        assert "%" in result.stdout
+        assert "Current session" in result.stdout or "session" in result.stdout.lower()
+
+    def test_dry_run_with_json(self):
+        """Test --dry-run works with --json output."""
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--dry-run", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0
+        # Should be valid JSON (after the DRY-RUN line)
+        output_lines = result.stdout.strip().split("\n")
+        # Find the JSON part (skip DRY-RUN indicator)
+        json_start = 0
+        for i, line in enumerate(output_lines):
+            if line.strip().startswith("{"):
+                json_start = i
+                break
+        json_output = "\n".join(output_lines[json_start:])
+        data = json.loads(json_output)
+        assert "five_hour" in data
+
+    def test_dry_run_with_verbose(self):
+        """Test --dry-run works with --verbose."""
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--dry-run", "--verbose"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0
+        assert "DRY-RUN" in result.stdout
+        assert "Cache:" in result.stdout
+
+    def test_dry_run_no_api_calls(self):
+        """Test --dry-run does not require credentials (uses mock data)."""
+        # Run with dry-run - should work even without valid credentials
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--dry-run"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, f"Should succeed with mock data: {result.stderr}"
+
+    def test_mock_usage_data_structure(self):
+        """Test get_mock_usage_data returns correct structure."""
+        data = get_mock_usage_data()
+        assert "five_hour" in data
+        assert "seven_day" in data
+        assert "utilization" in data["five_hour"]
+        assert "resets_at" in data["five_hour"]
+        assert data["five_hour"]["utilization"] == 34.5
+        assert data["seven_day"]["utilization"] == 12.3
 
 
 class TestCLIConstants:

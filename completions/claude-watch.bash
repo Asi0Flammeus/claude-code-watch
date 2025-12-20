@@ -11,7 +11,7 @@ _claude_watch_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # All available options
-    opts="--help -h --json -j --analytics -a --setup -s --config -c --no-color --no-record --cache-ttl"
+    opts="--help -h --json -j --analytics -a --setup -s --config -c --no-color --no-record --cache-ttl --version -V --verbose -v --quiet -q --dry-run"
 
     # Handle options that require arguments
     case "${prev}" in
