@@ -27,6 +27,12 @@ import statistics
 import shutil
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Version
+# ═══════════════════════════════════════════════════════════════════════════════
+
+__version__ = "1.0.0"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Configuration
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -654,7 +660,7 @@ def fetch_usage() -> dict:
             "Authorization": f"Bearer {token}",
             "anthropic-beta": API_BETA_HEADER,
             "Content-Type": "application/json",
-            "User-Agent": "claude-watch/1.0",
+            "User-Agent": f"claude-watch/{__version__}",
         },
     )
 
@@ -787,7 +793,7 @@ def fetch_admin_usage(admin_key: str, days: int = 180) -> list:
                 "x-api-key": admin_key,
                 "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json",
-                "User-Agent": "claude-watch/1.0",
+                "User-Agent": f"claude-watch/{__version__}",
             },
         )
 
@@ -1650,6 +1656,9 @@ Examples:
   claude-watch --setup      Run interactive setup wizard
   claude-watch --config     Show current configuration
   claude-watch --json       Output raw JSON data
+  claude-watch --verbose    Show timing and cache info
+  claude-watch --quiet      Silent mode for scripts
+  claude-watch --version    Show version and system info
   ccw                       Short alias (add to shell config)
 
 Setup:
@@ -1680,6 +1689,24 @@ Setup:
         metavar="SECONDS",
         help=f"Cache TTL in seconds (default: {CACHE_MAX_AGE})",
     )
+    parser.add_argument(
+        "--version",
+        "-V",
+        action="store_true",
+        help="Show version and system information",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Show detailed output including timing and cache info",
+    )
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress all output except errors",
+    )
 
     args = parser.parse_args()
 
@@ -1687,6 +1714,11 @@ Setup:
         for attr in dir(Colors):
             if not attr.startswith("_"):
                 setattr(Colors, attr, "")
+
+    # Handle version flag
+    if args.version:
+        print(f"claude-watch {__version__} (Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}, {platform.system()} {platform.machine()})")
+        return
 
     # Handle setup and config commands
     if args.setup:
@@ -1713,15 +1745,46 @@ Setup:
             save_config(config)
 
     try:
+        import time as _time
+
+        start_time = _time.time()
+
         # Fetch current usage
-        with Spinner("Fetching usage data"):
-            data = fetch_usage()
+        cache_ttl = args.cache_ttl if args.cache_ttl is not None else CACHE_MAX_AGE
+        cached_data = load_cache()
+        cache_hit = cached_data is not None
+
+        if args.quiet:
+            # Quiet mode: no spinner, use cached fetch
+            data = fetch_usage_cached(cache_ttl=cache_ttl, silent=True)
+            if data is None:
+                sys.exit(1)  # Silent failure
+        else:
+            if not args.verbose:
+                with Spinner("Fetching usage data"):
+                    data = fetch_usage_cached(cache_ttl=cache_ttl, silent=False)
+            else:
+                print(f"Fetching usage data (cache TTL: {cache_ttl}s)...")
+                data = fetch_usage_cached(cache_ttl=cache_ttl, silent=False)
+
+        fetch_time = _time.time() - start_time
+
+        # Show verbose info
+        if args.verbose:
+            cache_status = "HIT" if cache_hit else "MISS"
+            print(f"  Cache: {cache_status}")
+            print(f"  Time: {fetch_time:.2f}s")
+            print()
 
         # Record to history
         if not args.no_record:
             record_usage(data)
 
         history = load_history()
+
+        # Quiet mode: only output if there's a problem (future threshold support)
+        if args.quiet:
+            return
 
         # Display output
         if args.analytics:
