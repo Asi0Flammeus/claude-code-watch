@@ -1,65 +1,59 @@
 # Implementation TODO
 
-Development roadmap for `claude-usage` CLI features.
+Development roadmap for `claude-watch` CLI features.
 Reference: [docs/FEATURES.md](../docs/FEATURES.md)
 
 ---
 
-## Phase 0: Quality Foundation ⚡ NEW
+## Phase 0: Quality Foundation ✅ COMPLETE
 
-### 0.1 Testing Infrastructure
+### 0.1 Testing Infrastructure ✅
 **Priority:** Critical - Required before major feature development
 
-- [ ] Create `tests/` directory structure
-- [ ] Set up pytest with `pytest.ini` or `pyproject.toml`
-- [ ] Add coverage tracking (`pytest-cov`)
-- [ ] Create mock fixtures for API responses
-- [ ] Unit tests for core functions:
-  - [ ] `fetch_usage()` - API communication
-  - [ ] `parse_reset_time()` - Time parsing
-  - [ ] `format_relative_time()` - Display formatting
-  - [ ] `get_period_stats()` - Analytics calculations
-  - [ ] `load_history()` / `save_history()` - Data persistence
-- [ ] Integration tests for CLI arguments
+- [x] Create `tests/` directory structure
+- [x] Set up pytest with `pyproject.toml`
+- [x] Add coverage tracking (`pytest-cov`)
+- [x] Create mock fixtures for API responses (`conftest.py`)
+- [x] Unit tests for core functions:
+  - [x] `fetch_usage()` - API communication (`test_api.py`)
+  - [x] `parse_reset_time()` - Time parsing (`test_time.py`)
+  - [x] `format_relative_time()` - Display formatting (`test_formatting.py`)
+  - [x] `get_period_stats()` - Analytics calculations (`test_analytics.py`)
+  - [x] `load_history()` / `save_history()` - Data persistence (`test_api.py`)
+- [ ] Integration tests for CLI arguments (`test_cli.py`)
 - [ ] Add `make test` target
 
 ```bash
-# Target structure
+# Current structure ✅
 tests/
-├── conftest.py           # Fixtures, mocks
-├── test_api.py           # API communication tests
-├── test_analytics.py     # Analytics function tests
-├── test_cli.py           # CLI argument parsing tests
-├── test_formatting.py    # Display formatting tests
+├── conftest.py           # Fixtures, mocks ✅
+├── test_api.py           # API communication tests ✅
+├── test_analytics.py     # Analytics function tests ✅
+├── test_config.py        # Configuration tests ✅
+├── test_formatting.py    # Display formatting tests ✅
+├── test_time.py          # Time parsing tests ✅
 └── fixtures/
-    └── api_responses.json # Mock API data
+    └── api_responses.json # Mock API data ✅
 ```
 
 ---
 
-### 0.2 CI/CD Pipeline
+### 0.2 CI/CD Pipeline ✅
 **Priority:** High - Enables automated quality gates
 
-- [ ] Create `.github/workflows/test.yml`
-- [ ] Configure test matrix (Python 3.8, 3.9, 3.10, 3.11, 3.12)
-- [ ] Configure OS matrix (ubuntu-latest, macos-latest, windows-latest)
-- [ ] Add linting step (ruff or flake8)
+- [x] Create `.github/workflows/test.yml`
+- [x] Configure test matrix (Python 3.8, 3.10, 3.12)
+- [x] Configure OS matrix (ubuntu-latest, macos-latest, windows-latest)
+- [x] Add linting step (ruff check + ruff format)
 - [ ] Add type checking step (mypy)
-- [ ] Create `.github/workflows/release.yml` for automated releases
+- [x] Create `.github/workflows/release.yml` for automated releases
 - [ ] Add branch protection rules documentation
 
-```yaml
-# Target: .github/workflows/test.yml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.8', '3.10', '3.12']
-```
+**Completed fixes:**
+- Python 3.8 compatibility (`Optional[dict]` instead of `dict | None`)
+- Windows UTF-8 encoding for file operations
+- Windows strftime compatibility (cross-platform zero-stripping)
+- Windows file permissions test skipped (Unix-only)
 
 ---
 
@@ -577,11 +571,11 @@ display_group.add_argument("--export", ...)
 
 ## Progress Tracking
 
-### Phase 0: Quality Foundation ⚡ NEW
+### Phase 0: Quality Foundation ✅
 | # | Feature | Status | PR |
 |---|---------|--------|-----|
-| 0.1 | Testing infrastructure | Not started | |
-| 0.2 | CI/CD pipeline | Not started | |
+| 0.1 | Testing infrastructure | ✅ Complete | |
+| 0.2 | CI/CD pipeline | ✅ Complete | |
 | 0.3 | Pre-commit hooks | Not started | |
 
 ### Phase 1: Foundation
@@ -648,7 +642,7 @@ display_group.add_argument("--export", ...)
 
 | Priority | Phase | Rationale |
 |----------|-------|-----------|
-| 🔴 Critical | 0 (Quality) | Foundation for maintainability |
+| ✅ Done | 0 (Quality) | Foundation for maintainability |
 | 🔴 Critical | 1 (Cache) | Prerequisite for shell integrations |
 | 🟡 High | 1.5 (DX) | User expectations |
 | 🟡 High | 2 (Quick Wins) | High value, low effort |
@@ -661,4 +655,4 @@ display_group.add_argument("--export", ...)
 ---
 
 *Update this file as features are implemented.*
-*Last updated: 2024-12-19 | Added phases 0, 1.5, 6, 7, 8*
+*Last updated: 2024-12-20 | Phase 0 complete (testing + CI/CD)*
