@@ -25,6 +25,31 @@ _claude_watch_completions() {
             COMPREPLY=($(compgen -W "check" -- "${cur}"))
             return 0
             ;;
+        --config|-c)
+            # Suggest config subcommands
+            COMPREPLY=($(compgen -W "show reset set" -- "${cur}"))
+            return 0
+            ;;
+        set)
+            # Check if we're in a --config context
+            for ((i=1; i < COMP_CWORD; i++)); do
+                if [[ "${COMP_WORDS[i]}" == "--config" || "${COMP_WORDS[i]}" == "-c" ]]; then
+                    # Suggest config keys
+                    COMPREPLY=($(compgen -W "admin_api_key auto_collect collect_interval_hours setup_completed shell_completion_installed subscription_plan use_admin_api" -- "${cur}"))
+                    return 0
+                fi
+            done
+            ;;
+        subscription_plan)
+            # Suggest subscription plan values
+            COMPREPLY=($(compgen -W "pro max_5x max_20x" -- "${cur}"))
+            return 0
+            ;;
+        auto_collect|use_admin_api|setup_completed|shell_completion_installed)
+            # Suggest boolean values
+            COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+            return 0
+            ;;
     esac
 
     # Complete options

@@ -917,6 +917,85 @@ def reset_config():
     show_config()
 
 
+def set_config(key: str, value: str):
+    """Set a configuration key to a value.
+
+    Handles type conversion based on the default config type.
+    """
+    if key not in DEFAULT_CONFIG:
+        valid_keys = ", ".join(sorted(DEFAULT_CONFIG.keys()))
+        print(f"{Colors.RED}Error: Unknown configuration key '{key}'{Colors.RESET}")
+        print(f"Valid keys: {valid_keys}")
+        sys.exit(1)
+
+    config = load_config()
+    default_value = DEFAULT_CONFIG[key]
+
+    # Type conversion based on default type
+    try:
+        if default_value is None:
+            # None defaults accept strings or can be set to null/none
+            if value.lower() in ("null", "none", ""):
+                converted = None
+            else:
+                converted = value
+        elif isinstance(default_value, bool):
+            # Boolean: accept various truthy/falsy values
+            if value.lower() in ("true", "1", "yes", "on"):
+                converted = True
+            elif value.lower() in ("false", "0", "no", "off"):
+                converted = False
+            else:
+                raise ValueError(f"Expected boolean value (true/false), got '{value}'")
+        elif isinstance(default_value, int):
+            converted = int(value)
+        elif isinstance(default_value, float):
+            converted = float(value)
+        else:
+            # String type
+            converted = value
+    except ValueError as e:
+        print(f"{Colors.RED}Error: {e}{Colors.RESET}")
+        sys.exit(1)
+
+    # Special validation for specific keys
+    if key == "subscription_plan" and converted not in SUBSCRIPTION_PLANS:
+        valid_plans = ", ".join(SUBSCRIPTION_PLANS.keys())
+        print(f"{Colors.RED}Error: Invalid subscription plan '{converted}'{Colors.RESET}")
+        print(f"Valid plans: {valid_plans}")
+        sys.exit(1)
+
+    if key == "admin_api_key" and converted and not converted.startswith("sk-ant-admin"):
+        print(f"{Colors.YELLOW}Warning: Admin API keys typically start with 'sk-ant-admin-'{Colors.RESET}")
+
+    if key == "collect_interval_hours" and converted < 1:
+        print(f"{Colors.RED}Error: collect_interval_hours must be at least 1{Colors.RESET}")
+        sys.exit(1)
+
+    old_value = config.get(key)
+    config[key] = converted
+    save_config(config)
+
+    # Display result
+    if converted is None:
+        display_value = "null"
+    elif isinstance(converted, bool):
+        display_value = "true" if converted else "false"
+    else:
+        display_value = str(converted)
+
+    print(f"{Colors.GREEN}✓ Set {key} = {display_value}{Colors.RESET}")
+
+    if old_value != converted:
+        if old_value is None:
+            old_display = "null"
+        elif isinstance(old_value, bool):
+            old_display = "true" if old_value else "false"
+        else:
+            old_display = str(old_value)
+        print(f"{Colors.DIM}  (was: {old_display}){Colors.RESET}")
+
+
 def show_config():
     """Display current configuration."""
     config = load_config()
@@ -2113,6 +2192,7 @@ Examples:
   claude-watch --config     Show current configuration (default: show)
   claude-watch --config show  Explicitly show current configuration
   claude-watch --config reset Reset configuration to defaults
+  claude-watch --config set subscription_plan max_5x  Set a config value
   claude-watch --json       Output raw JSON data
   claude-watch --verbose    Show timing and cache info
   claude-watch --quiet      Silent mode for scripts
@@ -2142,10 +2222,9 @@ Setup:
     parser.add_argument(
         "--config",
         "-c",
-        nargs="?",
-        const="show",
+        nargs="*",
         metavar="COMMAND",
-        help="Configuration commands: show (default), reset",
+        help="Configuration commands: show (default), reset, set KEY VALUE",
     )
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     parser.add_argument(
@@ -2213,13 +2292,23 @@ Setup:
         return
 
     if args.config is not None:
-        if args.config == "show":
+        # Handle empty list (just --config with no args) as "show"
+        if len(args.config) == 0:
             show_config()
-        elif args.config == "reset":
+        elif args.config[0] == "show":
+            show_config()
+        elif args.config[0] == "reset":
             reset_config()
+        elif args.config[0] == "set":
+            if len(args.config) != 3:
+                print(f"{Colors.RED}Error: 'set' requires KEY and VALUE arguments{Colors.RESET}")
+                print(f"Usage: claude-watch --config set KEY VALUE")
+                print(f"\nValid keys: {', '.join(sorted(DEFAULT_CONFIG.keys()))}")
+                sys.exit(1)
+            set_config(args.config[1], args.config[2])
         else:
-            print(f"{Colors.RED}Error: Unknown config command '{args.config}'{Colors.RESET}")
-            print(f"Available commands: show, reset")
+            print(f"{Colors.RED}Error: Unknown config command '{args.config[0]}'{Colors.RESET}")
+            print(f"Available commands: show, reset, set KEY VALUE")
             sys.exit(1)
         return
 
