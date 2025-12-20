@@ -35,7 +35,9 @@ ADMIN_API_URL = "https://api.anthropic.com/v1/organizations/usage_report/message
 API_BETA_HEADER = "oauth-2025-04-20"
 CONFIG_FILE = Path.home() / ".claude" / ".usage_config.json"
 HISTORY_FILE = Path.home() / ".claude" / ".usage_history.json"
+CACHE_FILE = Path.home() / ".claude" / ".usage_cache.json"
 MAX_HISTORY_DAYS = 180  # 6 months
+CACHE_MAX_AGE = 60  # seconds
 
 # Systemd paths
 SYSTEMD_USER_DIR = Path.home() / ".config" / "systemd" / "user"
@@ -668,6 +670,94 @@ def fetch_usage() -> dict:
         raise RuntimeError(f"API error: {e.code} {e.reason}")
     except URLError as e:
         raise RuntimeError(f"Network error: {e.reason}")
+
+
+def load_cache() -> Optional[dict]:
+    """Load cached usage data if valid."""
+    if not CACHE_FILE.exists():
+        return None
+    try:
+        with open(CACHE_FILE, encoding="utf-8") as f:
+            cache = json.load(f)
+        # Check cache age
+        cached_at = cache.get("cached_at")
+        if not cached_at:
+            return None
+        cached_dt = datetime.fromisoformat(cached_at.replace("Z", "+00:00"))
+        age = (datetime.now(timezone.utc) - cached_dt).total_seconds()
+        if age > CACHE_MAX_AGE:
+            return None
+        return cache.get("data")
+    except (json.JSONDecodeError, IOError, ValueError):
+        return None
+
+
+def save_cache(data: dict):
+    """Save usage data to cache."""
+    cache = {
+        "cached_at": datetime.now(timezone.utc).isoformat(),
+        "data": data,
+    }
+    try:
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2)
+    except IOError:
+        pass  # Silent fail for cache write errors
+
+
+def get_stale_cache() -> Optional[dict]:
+    """Get cached data even if stale (for fallback)."""
+    if not CACHE_FILE.exists():
+        return None
+    try:
+        with open(CACHE_FILE, encoding="utf-8") as f:
+            cache = json.load(f)
+        return cache.get("data")
+    except (json.JSONDecodeError, IOError):
+        return None
+
+
+def fetch_usage_cached(cache_ttl: Optional[int] = None, silent: bool = False) -> Optional[dict]:
+    """Fetch usage with caching support.
+
+    Args:
+        cache_ttl: Override default cache TTL in seconds.
+        silent: If True, return None on error instead of raising.
+                If cache exists, return stale cache on error.
+
+    Returns:
+        Usage data dict, or None if silent mode and error occurred.
+    """
+    global CACHE_MAX_AGE
+    original_max_age = CACHE_MAX_AGE
+
+    try:
+        # Apply custom TTL if provided
+        if cache_ttl is not None:
+            CACHE_MAX_AGE = cache_ttl
+
+        # Try to load from cache first
+        cached = load_cache()
+        if cached is not None:
+            return cached
+
+        # Cache miss or stale, fetch fresh data
+        data = fetch_usage()
+        save_cache(data)
+        return data
+
+    except Exception as e:
+        if silent:
+            # Try to return stale cache as fallback
+            stale = get_stale_cache()
+            if stale is not None:
+                return stale
+            return None
+        raise
+    finally:
+        # Restore original TTL
+        CACHE_MAX_AGE = original_max_age
 
 
 def fetch_admin_usage(admin_key: str, days: int = 180) -> list:
@@ -1583,6 +1673,12 @@ Setup:
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     parser.add_argument(
         "--no-record", action="store_true", help="Don't record this fetch to history"
+    )
+    parser.add_argument(
+        "--cache-ttl",
+        type=int,
+        metavar="SECONDS",
+        help=f"Cache TTL in seconds (default: {CACHE_MAX_AGE})",
     )
 
     args = parser.parse_args()

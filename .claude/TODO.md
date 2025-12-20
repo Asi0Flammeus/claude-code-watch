@@ -67,22 +67,29 @@ tests/
 
 ---
 
-## Phase 1: Foundation
+## Phase 1: Foundation ✅ COMPLETE
 
-### 1.1 Cache System (Prerequisite)
+### 1.1 Cache System (Prerequisite) ✅
 **Required by:** `--prompt`, `--tmux`
 
-- [ ] Create `fetch_usage_cached()` function
-- [ ] Cache file: `~/.claude/.usage_cache.json`
-- [ ] Max age: 60 seconds (configurable)
-- [ ] Silent fallback on error (return `None` or last cached)
-- [ ] Add `--cache-ttl` argument (optional)
+- [x] Create `fetch_usage_cached()` function
+- [x] Cache file: `~/.claude/.usage_cache.json`
+- [x] Max age: 60 seconds (configurable)
+- [x] Silent fallback on error (return `None` or last cached)
+- [x] Add `--cache-ttl` argument (optional)
+- [x] Unit tests for cache functions (`test_cache.py`)
 
 ```python
-# Target location: after fetch_usage() function
+# Implemented in claude-watch after fetch_usage()
 CACHE_FILE = Path.home() / ".claude" / ".usage_cache.json"
 CACHE_MAX_AGE = 60
 ```
+
+**Functions implemented:**
+- `load_cache()` - Load cached data if fresh
+- `save_cache()` - Save data to cache with timestamp
+- `get_stale_cache()` - Get cached data for fallback (ignores TTL)
+- `fetch_usage_cached(cache_ttl, silent)` - Main cached fetch with error handling
 
 ---
 
@@ -578,10 +585,10 @@ display_group.add_argument("--export", ...)
 | 0.2 | CI/CD pipeline | ✅ Complete | |
 | 0.3 | Pre-commit hooks | Not started | |
 
-### Phase 1: Foundation
+### Phase 1: Foundation ✅
 | # | Feature | Status | PR |
 |---|---------|--------|-----|
-| 1.1 | Cache system | Not started | |
+| 1.1 | Cache system | ✅ Complete | |
 
 ### Phase 1.5: Developer Experience ⚡ NEW
 | # | Feature | Status | PR |
@@ -643,7 +650,7 @@ display_group.add_argument("--export", ...)
 | Priority | Phase | Rationale |
 |----------|-------|-----------|
 | ✅ Done | 0 (Quality) | Foundation for maintainability |
-| 🔴 Critical | 1 (Cache) | Prerequisite for shell integrations |
+| ✅ Done | 1 (Cache) | Prerequisite for shell integrations |
 | 🟡 High | 1.5 (DX) | User expectations |
 | 🟡 High | 2 (Quick Wins) | High value, low effort |
 | 🟡 High | 8.1, 8.4 (PyPI, Docs) | Distribution & sustainability |
@@ -655,4 +662,4 @@ display_group.add_argument("--export", ...)
 ---
 
 *Update this file as features are implemented.*
-*Last updated: 2024-12-20 | Phase 0 complete (testing + CI/CD)*
+*Last updated: 2025-12-20 | Phase 0 + 1 complete (testing, CI/CD, cache system)*
