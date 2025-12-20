@@ -20,7 +20,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from collections import defaultdict
@@ -187,13 +187,99 @@ API_PRICING = {
 }
 
 
-def load_config() -> dict:
-    """Load configuration from file."""
+# Config schema for validation
+# Format: key -> (type, required, validator_func or None)
+# validator_func takes value and returns (is_valid, error_message)
+CONFIG_SCHEMA = {
+    "admin_api_key": (
+        (str, type(None)),
+        False,
+        lambda v: (True, "") if v is None or (isinstance(v, str) and len(v) > 0) else (False, "must be a non-empty string or null"),
+    ),
+    "use_admin_api": ((bool,), False, None),
+    "auto_collect": ((bool,), False, None),
+    "collect_interval_hours": (
+        (int, float),
+        False,
+        lambda v: (True, "") if 0 < v <= 24 else (False, "must be between 0 and 24"),
+    ),
+    "setup_completed": ((bool,), False, None),
+    "subscription_plan": (
+        (str,),
+        False,
+        lambda v: (True, "") if v in SUBSCRIPTION_PLANS else (False, f"must be one of: {', '.join(SUBSCRIPTION_PLANS.keys())}"),
+    ),
+    "shell_completion_installed": ((bool,), False, None),
+}
+
+
+def validate_config(config: dict) -> List[str]:
+    """Validate configuration against schema.
+
+    Args:
+        config: Configuration dictionary to validate.
+
+    Returns:
+        List of validation error messages. Empty list if valid.
+    """
+    errors = []
+
+    # Check for unknown keys
+    for key in config:
+        if key not in CONFIG_SCHEMA:
+            errors.append(f"Unknown config key: '{key}'")
+
+    # Validate each known key
+    for key, (expected_types, required, validator) in CONFIG_SCHEMA.items():
+        # Check required keys
+        if required and key not in config:
+            errors.append(f"Missing required key: '{key}'")
+            continue
+
+        # Skip if key not present and not required
+        if key not in config:
+            continue
+
+        value = config[key]
+
+        # Type checking (allow None for optional fields)
+        if not isinstance(value, expected_types):
+            type_names = " or ".join(t.__name__ for t in expected_types)
+            errors.append(f"'{key}' has invalid type: expected {type_names}, got {type(value).__name__}")
+            continue
+
+        # Custom validation
+        if validator and value is not None:
+            is_valid, error_msg = validator(value)
+            if not is_valid:
+                errors.append(f"'{key}' {error_msg}")
+
+    return errors
+
+
+def load_config(validate: bool = True) -> dict:
+    """Load configuration from file.
+
+    Args:
+        validate: Whether to validate config and warn on errors. Default True.
+
+    Returns:
+        Configuration dictionary merged with defaults.
+    """
     if not CONFIG_FILE.exists():
         return DEFAULT_CONFIG.copy()
     try:
         with open(CONFIG_FILE) as f:
             config = json.load(f)
+
+            # Validate if requested
+            if validate:
+                errors = validate_config(config)
+                if errors:
+                    print(f"{Colors.YELLOW}Warning: Config validation errors:{Colors.RESET}", file=sys.stderr)
+                    for error in errors:
+                        print(f"  - {error}", file=sys.stderr)
+
             # Merge with defaults for any missing keys
             return {**DEFAULT_CONFIG, **config}
     except (json.JSONDecodeError, IOError):

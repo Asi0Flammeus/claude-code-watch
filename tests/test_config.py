@@ -153,3 +153,118 @@ class TestPromptHelpers:
         monkeypatch.setattr("builtins.input", lambda _: "custom_value")
         result = prompt_input("Test?", default="default")
         assert result == "custom_value"
+
+
+class TestValidateConfig:
+    """Tests for validate_config function."""
+
+    def test_valid_config_returns_empty_list(self):
+        """Test that valid config returns no errors."""
+        valid_config = {
+            "admin_api_key": "sk-ant-test",
+            "use_admin_api": True,
+            "auto_collect": False,
+            "collect_interval_hours": 1,
+            "setup_completed": True,
+            "subscription_plan": "pro",
+            "shell_completion_installed": False,
+        }
+        errors = validate_config(valid_config)
+        assert errors == []
+
+    def test_valid_config_with_null_api_key(self):
+        """Test that null api_key is valid."""
+        config = {"admin_api_key": None}
+        errors = validate_config(config)
+        assert errors == []
+
+    def test_empty_config_is_valid(self):
+        """Test that empty config (all defaults) is valid."""
+        errors = validate_config({})
+        assert errors == []
+
+    def test_unknown_key_reports_error(self):
+        """Test that unknown keys are reported."""
+        config = {"unknown_key": "value"}
+        errors = validate_config(config)
+        assert len(errors) == 1
+        assert "Unknown config key: 'unknown_key'" in errors[0]
+
+    def test_invalid_type_reports_error(self):
+        """Test that wrong types are reported."""
+        config = {"use_admin_api": "not a bool"}
+        errors = validate_config(config)
+        assert len(errors) == 1
+        assert "'use_admin_api' has invalid type" in errors[0]
+
+    def test_invalid_subscription_plan(self):
+        """Test that invalid subscription plan is reported."""
+        config = {"subscription_plan": "invalid_plan"}
+        errors = validate_config(config)
+        assert len(errors) == 1
+        assert "'subscription_plan'" in errors[0]
+        assert "must be one of" in errors[0]
+
+    def test_invalid_collect_interval(self):
+        """Test that out-of-range interval is reported."""
+        config = {"collect_interval_hours": 48}
+        errors = validate_config(config)
+        assert len(errors) == 1
+        assert "'collect_interval_hours'" in errors[0]
+        assert "must be between 0 and 24" in errors[0]
+
+    def test_zero_collect_interval_invalid(self):
+        """Test that zero interval is invalid."""
+        config = {"collect_interval_hours": 0}
+        errors = validate_config(config)
+        assert len(errors) == 1
+
+    def test_multiple_errors(self):
+        """Test that multiple errors are collected."""
+        config = {
+            "unknown_key": "value",
+            "use_admin_api": "not a bool",
+            "subscription_plan": "invalid",
+        }
+        errors = validate_config(config)
+        assert len(errors) == 3
+
+    def test_float_interval_is_valid(self):
+        """Test that float interval values are accepted."""
+        config = {"collect_interval_hours": 0.5}
+        errors = validate_config(config)
+        assert errors == []
+
+    def test_empty_string_api_key_invalid(self):
+        """Test that empty string api_key is invalid."""
+        config = {"admin_api_key": ""}
+        errors = validate_config(config)
+        assert len(errors) == 1
+        assert "'admin_api_key'" in errors[0]
+
+
+class TestLoadConfigValidation:
+    """Tests for load_config with validation."""
+
+    def test_load_config_validates_by_default(self, tmp_path, capsys):
+        """Test that load_config validates and warns on errors."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(json.dumps({"unknown_key": "value"}))
+        globals()["CONFIG_FILE"] = config_file
+
+        load_config()
+
+        captured = capsys.readouterr()
+        assert "Warning: Config validation errors" in captured.err
+        assert "Unknown config key" in captured.err
+
+    def test_load_config_can_skip_validation(self, tmp_path, capsys):
+        """Test that validation can be disabled."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(json.dumps({"unknown_key": "value"}))
+        globals()["CONFIG_FILE"] = config_file
+
+        load_config(validate=False)
+
+        captured = capsys.readouterr()
+        assert captured.err == ""
