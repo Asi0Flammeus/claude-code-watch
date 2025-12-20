@@ -1,7 +1,7 @@
 # Claude Code Watch - Development Commands
 # ═══════════════════════════════════════════════════════════════════════════════
 
-.PHONY: help install install-dev test test-cov lint format clean
+.PHONY: help install install-dev test test-cov lint format typecheck pre-commit clean
 
 # Default target
 help:
@@ -16,6 +16,8 @@ help:
 	@echo "  test-cov     Run tests with coverage report"
 	@echo "  lint         Run linter (ruff)"
 	@echo "  format       Format code (ruff)"
+	@echo "  typecheck    Run type checker (mypy)"
+	@echo "  pre-commit   Run all pre-commit hooks"
 	@echo "  clean        Remove build artifacts"
 	@echo ""
 
@@ -57,6 +59,12 @@ format:
 
 format-check:
 	ruff format . --check
+
+typecheck:
+	mypy claude-watch --ignore-missing-imports
+
+pre-commit:
+	pre-commit run --all-files
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Cleanup
