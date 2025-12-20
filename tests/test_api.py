@@ -24,12 +24,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 spec = importlib.util.spec_from_loader(
     "claude_watch",
     loader=None,
-    origin=str(Path(__file__).parent.parent / "claude-watch"),
+    origin=str(Path(__file__).parent.parent / "claude_watch.py"),
 )
 claude_watch = importlib.util.module_from_spec(spec)
 
 # Execute the module to load its contents
-with open(Path(__file__).parent.parent / "claude-watch", encoding="utf-8") as f:
+with open(Path(__file__).parent.parent / "claude_watch.py", encoding="utf-8") as f:
     exec(f.read(), claude_watch.__dict__)
 
 

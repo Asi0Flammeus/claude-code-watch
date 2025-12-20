@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Path to the main script
-SCRIPT_PATH = PROJECT_ROOT / "claude-watch"
+SCRIPT_PATH = PROJECT_ROOT / "claude_watch.py"
 
 # Import functions from main script (like other test files do)
 exec(open(SCRIPT_PATH, encoding="utf-8").read())

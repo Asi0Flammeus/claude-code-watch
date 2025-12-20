@@ -29,21 +29,63 @@ A command-line tool to monitor your Claude Code subscription usage, similar to [
 
 See [docs/FEATURES.md](docs/FEATURES.md) for detailed specifications.
 
-## Quick Start
+## Installation
+
+### Option 1: uv (Recommended)
+
+[uv](https://docs.astral.sh/uv/) is the fastest way to install Python CLI tools:
 
 ```bash
-# Clone and install
-git clone https://github.com/YOUR_REPO/claude-watch.git
-cd claude-watch
+# Install uv if you don't have it
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Option 1: Symlink to PATH
-ln -s $(pwd)/claude-watch ~/.local/bin/claude-watch
-
-# Option 2: Add alias for ccw (add to ~/.bashrc or ~/.zshrc)
-alias ccw='/path/to/claude-watch/claude-watch'
+# Install claude-watch
+uv tool install claude-watch
 
 # Run
 claude-watch           # Current usage
+claude-watch -a        # With analytics
+ccw                    # Short alias (included)
+```
+
+Update later with: `uv tool upgrade claude-watch`
+
+### Option 2: pipx
+
+If you prefer [pipx](https://pipx.pypa.io/):
+
+```bash
+pipx install claude-watch
+```
+
+### Option 3: Direct Download
+
+For a single-file install without package managers:
+
+```bash
+# Download to ~/.local/bin (or any directory in your PATH)
+curl -o ~/.local/bin/claude-watch \
+  https://raw.githubusercontent.com/YOUR_REPO/claude-watch/main/claude_watch.py
+
+chmod +x ~/.local/bin/claude-watch
+
+# Optional: create short alias
+ln -s ~/.local/bin/claude-watch ~/.local/bin/ccw
+```
+
+### Option 4: From Source
+
+```bash
+git clone https://github.com/YOUR_REPO/claude-watch.git
+cd claude-watch
+uv tool install .
+# or: pip install --user .
+```
+
+## Quick Start
+
+```bash
+claude-watch           # Show current usage
 claude-watch -a        # With analytics
 claude-watch --setup   # Configure auto-collection
 ccw                    # Short alias

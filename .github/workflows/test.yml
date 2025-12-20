@@ -85,4 +85,4 @@ jobs:
         run: pip install mypy
 
       - name: Run mypy
-        run: mypy claude-watch --ignore-missing-imports
+        run: mypy claude_watch.py --ignore-missing-imports
