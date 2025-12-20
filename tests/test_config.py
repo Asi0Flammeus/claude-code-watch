@@ -264,7 +264,114 @@ class TestLoadConfigValidation:
         config_file.write_text(json.dumps({"unknown_key": "value"}))
         globals()["CONFIG_FILE"] = config_file
 
-        load_config(validate=False)
+        load_config(validate=False, auto_migrate=False)
 
         captured = capsys.readouterr()
         assert captured.err == ""
+
+
+class TestMigrateConfig:
+    """Tests for config migration functionality."""
+
+    def test_v1_config_migrated_to_v2(self):
+        """Test that v1 config (missing shell_completion_installed) is migrated."""
+        v1_config = {
+            "admin_api_key": "test-key",
+            "use_admin_api": True,
+            "auto_collect": False,
+            "collect_interval_hours": 2,
+            "setup_completed": True,
+            "subscription_plan": "pro",
+        }
+
+        migrated, was_migrated = migrate_config(v1_config)
+
+        assert was_migrated is True
+        assert "shell_completion_installed" in migrated
+        assert migrated["shell_completion_installed"] is False
+        assert migrated["_config_version"] == CONFIG_VERSION
+        # Original values preserved
+        assert migrated["admin_api_key"] == "test-key"
+        assert migrated["use_admin_api"] is True
+        assert migrated["subscription_plan"] == "pro"
+
+    def test_current_config_not_migrated(self):
+        """Test that current version config is not migrated."""
+        current_config = {
+            "admin_api_key": "test-key",
+            "use_admin_api": True,
+            "auto_collect": False,
+            "collect_interval_hours": 2,
+            "setup_completed": True,
+            "subscription_plan": "pro",
+            "shell_completion_installed": True,
+            "_config_version": CONFIG_VERSION,
+        }
+
+        migrated, was_migrated = migrate_config(current_config)
+
+        assert was_migrated is False
+        assert migrated == current_config
+
+    def test_partial_v1_config_migrated(self):
+        """Test migration of minimal v1 config."""
+        minimal_config = {"subscription_plan": "max_5x"}
+
+        migrated, was_migrated = migrate_config(minimal_config)
+
+        assert was_migrated is True
+        assert "shell_completion_installed" in migrated
+        assert migrated["_config_version"] == CONFIG_VERSION
+
+    def test_already_has_shell_completion_not_migrated(self):
+        """Test config with shell_completion but no version marker."""
+        config_with_field = {
+            "subscription_plan": "pro",
+            "shell_completion_installed": True,
+        }
+
+        migrated, was_migrated = migrate_config(config_with_field)
+
+        # No migration needed since field already exists
+        assert was_migrated is False
+
+    def test_load_config_auto_migrates(self, tmp_path, capsys):
+        """Test that load_config automatically migrates old configs."""
+        config_file = tmp_path / "config.json"
+        v1_config = {
+            "admin_api_key": "test-key",
+            "use_admin_api": True,
+            "subscription_plan": "pro",
+        }
+        config_file.write_text(json.dumps(v1_config))
+        globals()["CONFIG_FILE"] = config_file
+
+        result = load_config()
+
+        # Check migration message printed
+        captured = capsys.readouterr()
+        assert "Config migrated to version" in captured.err
+
+        # Check config was updated
+        assert result["shell_completion_installed"] is False
+
+        # Check file was saved with migration
+        saved_config = json.loads(config_file.read_text())
+        assert saved_config["_config_version"] == CONFIG_VERSION
+
+    def test_load_config_can_skip_migration(self, tmp_path, capsys):
+        """Test that auto_migrate=False skips migration."""
+        config_file = tmp_path / "config.json"
+        v1_config = {"subscription_plan": "pro"}
+        config_file.write_text(json.dumps(v1_config))
+        globals()["CONFIG_FILE"] = config_file
+
+        load_config(auto_migrate=False, validate=False)
+
+        # No migration message
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+        # Config not modified on disk
+        saved_config = json.loads(config_file.read_text())
+        assert "_config_version" not in saved_config

@@ -210,6 +210,7 @@ CONFIG_SCHEMA = {
         lambda v: (True, "") if v in SUBSCRIPTION_PLANS else (False, f"must be one of: {', '.join(SUBSCRIPTION_PLANS.keys())}"),
     ),
     "shell_completion_installed": ((bool,), False, None),
+    "_config_version": ((int,), False, None),  # Internal version tracking for migrations
 }
 
 
@@ -257,11 +258,58 @@ def validate_config(config: dict) -> List[str]:
     return errors
 
 
-def load_config(validate: bool = True) -> dict:
+# Config version for migration tracking
+# Increment this when adding new config fields or changing schema
+CONFIG_VERSION = 2
+
+# Migration history:
+# v1: Original config (admin_api_key, use_admin_api, auto_collect, collect_interval_hours, setup_completed, subscription_plan)
+# v2: Added shell_completion_installed
+
+
+def migrate_config(config: dict) -> Tuple[dict, bool]:
+    """Migrate old config formats to the current schema.
+
+    Args:
+        config: Configuration dictionary to migrate.
+
+    Returns:
+        Tuple of (migrated_config, was_migrated).
+    """
+    was_migrated = False
+    migrated = config.copy()
+
+    # Detect version by checking for known fields
+    # If _config_version is missing, infer from field presence
+    current_version = migrated.get("_config_version", 1)
+
+    # Migration from v1 to v2: Add shell_completion_installed
+    if current_version < 2:
+        if "shell_completion_installed" not in migrated:
+            migrated["shell_completion_installed"] = DEFAULT_CONFIG["shell_completion_installed"]
+            was_migrated = True
+        current_version = 2
+
+    # Remove any deprecated keys (none currently, but ready for future)
+    deprecated_keys = []  # Add deprecated key names here in future
+    for key in deprecated_keys:
+        if key in migrated:
+            del migrated[key]
+            was_migrated = True
+
+    # Update version marker
+    if was_migrated:
+        migrated["_config_version"] = CONFIG_VERSION
+
+    return migrated, was_migrated
+
+
+def load_config(validate: bool = True, auto_migrate: bool = True) -> dict:
     """Load configuration from file.
 
     Args:
         validate: Whether to validate config and warn on errors. Default True.
+        auto_migrate: Whether to automatically migrate old config formats. Default True.
 
     Returns:
         Configuration dictionary merged with defaults.
@@ -271,6 +319,14 @@ def load_config(validate: bool = True) -> dict:
     try:
         with open(CONFIG_FILE) as f:
             config = json.load(f)
+
+            # Migrate old config formats if needed
+            if auto_migrate:
+                config, was_migrated = migrate_config(config)
+                if was_migrated:
+                    # Save the migrated config
+                    save_config(config)
+                    print(f"{Colors.CYAN}Config migrated to version {CONFIG_VERSION}{Colors.RESET}", file=sys.stderr)
 
             # Validate if requested
             if validate:
