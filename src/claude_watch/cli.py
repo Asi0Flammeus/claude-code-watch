@@ -343,11 +343,20 @@ def main() -> None:
             # No cache at all, fetch silently
             data = fetch_usage_cached(silent=True)
         if data is None:
-            # Still nothing, show empty prompt
+            # Still nothing, show empty prompt with error exit code
             print("")
-            return
+            sys.exit(3)
+
         print(format_prompt(data, args.prompt))
-        return
+
+        # Set exit code based on usage level
+        five_hour = data.get("five_hour") or {}
+        utilization = five_hour.get("utilization", 0)
+        if utilization >= 90:
+            sys.exit(2)  # Critical
+        elif utilization >= 75:
+            sys.exit(1)  # Warning
+        sys.exit(0)  # OK
 
     # Fetch usage data
     start_time = time.time()
