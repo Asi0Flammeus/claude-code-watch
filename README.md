@@ -111,6 +111,12 @@ Resets Mon 6:59 PM
 | `claude-watch --no-record` | Don't save to history |
 | `ccw` | Short alias (configure in shell) |
 
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLAUDE_WATCH_NO_COLOR` | Disable colors when set to any non-empty value |
+
 ## Setup Wizard
 
 First run prompts for optional configuration:

@@ -71,6 +71,9 @@ class Colors:
 
 
 def supports_color():
+    # Check for CLAUDE_WATCH_NO_COLOR env var (any non-empty value disables color)
+    if os.environ.get("CLAUDE_WATCH_NO_COLOR"):
+        return False
     if not hasattr(sys.stdout, "isatty") or not sys.stdout.isatty():
         return False
     if platform.system() == "Windows":

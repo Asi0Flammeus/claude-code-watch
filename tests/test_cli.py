@@ -163,6 +163,28 @@ class TestCLIColors:
         for attr, value in original_values.items():
             setattr(Colors, attr, value)
 
+    def test_no_color_env_var_disables_colors(self, monkeypatch):
+        """Test CLAUDE_WATCH_NO_COLOR env var disables colors."""
+        # Set the env var
+        monkeypatch.setenv("CLAUDE_WATCH_NO_COLOR", "1")
+
+        # supports_color should return False when env var is set
+        assert supports_color() is False
+
+    def test_no_color_env_var_any_value_disables(self, monkeypatch):
+        """Test CLAUDE_WATCH_NO_COLOR works with any non-empty value."""
+        # Test with different values
+        for value in ["1", "true", "yes", "anything"]:
+            monkeypatch.setenv("CLAUDE_WATCH_NO_COLOR", value)
+            assert supports_color() is False
+
+    def test_empty_no_color_env_var_allows_colors(self, monkeypatch):
+        """Test empty CLAUDE_WATCH_NO_COLOR doesn't disable colors."""
+        monkeypatch.setenv("CLAUDE_WATCH_NO_COLOR", "")
+        # Empty string should not disable colors (depends on TTY)
+        # Just verify it doesn't raise an error
+        supports_color()  # Should not raise
+
 
 class TestCLIConfig:
     """Tests for --config command."""
