@@ -323,6 +323,9 @@ def main() -> None:
         if args.json:
             print()
             print(json.dumps(data, indent=2))
+        elif args.prompt:
+            from claude_watch.display.prompt import format_prompt
+            print(format_prompt(data, args.prompt))
         else:
             display_usage(data)
         return
@@ -331,7 +334,7 @@ def main() -> None:
     start_time = time.time()
     try:
         cache_ttl = args.cache_ttl if args.cache_ttl else CACHE_MAX_AGE
-        data, cache_status = fetch_usage_cached(cache_ttl=cache_ttl)
+        data = fetch_usage_cached(cache_ttl=cache_ttl)
     except Exception as e:
         if not args.quiet:
             print(f"{Colors.RED}Error fetching usage data: {e}{Colors.RESET}")
@@ -351,6 +354,12 @@ def main() -> None:
         else:
             display_usage(data)
             display_analytics(data, history, config)
+        return
+
+    # Handle --prompt flag
+    if args.prompt:
+        from claude_watch.display.prompt import format_prompt
+        print(format_prompt(data, args.prompt))
         return
 
     # Handle --json output
