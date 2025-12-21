@@ -61,7 +61,7 @@ format-check:
 	ruff format . --check
 
 typecheck:
-	mypy claude_watch.py --ignore-missing-imports
+	mypy src/claude_watch --ignore-missing-imports
 
 pre-commit:
 	pre-commit run --all-files

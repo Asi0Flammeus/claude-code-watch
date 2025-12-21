@@ -35,10 +35,8 @@ dev = [
 ]
 
 [project.scripts]
-# Primary: use standalone claude_watch.py (no src/ dependency)
-# When full migration is complete, change to: claude_watch.cli:main
-claude-watch = "claude_watch:main"
-ccw = "claude_watch:main"
+claude-watch = "claude_watch.cli:main"
+ccw = "claude_watch.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/Asi0Flammeus/claude-code-watch"
@@ -56,14 +54,13 @@ path = "src/claude_watch/_version.py"
 # Source layout configuration
 [tool.hatch.build.targets.wheel]
 packages = ["src/claude_watch"]
-# Also include standalone script during transition
-artifacts = ["claude_watch.py", "completions"]
+artifacts = ["completions"]
 
 [tool.hatch.build.targets.sdist]
 include = [
     "src/claude_watch",
-    "claude_watch.py",
     "completions",
+    "install.sh",
     "README.md",
     "LICENSE",
     "pyproject.toml",
@@ -79,13 +76,10 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-# Use importlib mode to avoid claude_watch.py shadowing src/claude_watch/ package
-# This is essential because pytest adds project root to sys.path by default
 addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
-    "--import-mode=importlib",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -93,8 +87,8 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/claude_watch", "claude_watch.py"]
-omit = ["tests/*", "setup.py", "*/__pycache__/*"]
+source = ["src/claude_watch"]
+omit = ["tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
 exclude_lines = [

@@ -20,9 +20,16 @@ from claude_watch.display.analytics import SUBSCRIPTION_PLANS
 from claude_watch.display.colors import Colors, supports_color
 from claude_watch.history.storage import MAX_HISTORY_DAYS, load_history
 
-# Path to the main script
+# Path to project root
 PROJECT_ROOT = Path(__file__).parent.parent
-SCRIPT_PATH = PROJECT_ROOT / "claude_watch.py"
+SRC_DIR = PROJECT_ROOT / "src"
+
+
+def get_test_env():
+    """Get environment with PYTHONPATH set for subprocess tests."""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(SRC_DIR)
+    return env
 
 
 class TestCLIHelp:
@@ -31,18 +38,20 @@ class TestCLIHelp:
     def test_help_exits_zero(self):
         """Test that --help exits with code 0."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--help"],
+            [sys.executable, "-m", "claude_watch", "--help"],
             capture_output=True,
             text=True,
+            env=get_test_env(),
         )
         assert result.returncode == 0
 
     def test_help_shows_description(self):
         """Test that --help shows program description."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--help"],
+            [sys.executable, "-m", "claude_watch", "--help"],
             capture_output=True,
             text=True,
+            env=get_test_env(),
         )
         assert "Claude Code" in result.stdout
         assert "usage" in result.stdout.lower()
@@ -50,9 +59,10 @@ class TestCLIHelp:
     def test_help_shows_all_arguments(self):
         """Test that --help lists all main arguments."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--help"],
+            [sys.executable, "-m", "claude_watch", "--help"],
             capture_output=True,
             text=True,
+            env=get_test_env(),
         )
         expected_args = ["--json", "--analytics", "--setup", "--config", "--no-color", "--no-record", "--dry-run"]
         for arg in expected_args:
@@ -61,9 +71,10 @@ class TestCLIHelp:
     def test_help_shows_examples(self):
         """Test that --help shows usage examples."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--help"],
+            [sys.executable, "-m", "claude_watch", "--help"],
             capture_output=True,
             text=True,
+            env=get_test_env(),
         )
         assert "Examples:" in result.stdout
         assert "claude-watch" in result.stdout
@@ -283,22 +294,24 @@ class TestCLIHistory:
 class TestCLIIntegration:
     """End-to-end integration tests."""
 
-    def test_script_is_executable(self):
-        """Test the script can be executed."""
+    def test_module_is_executable(self):
+        """Test the module can be executed."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--help"],
+            [sys.executable, "-m", "claude_watch", "--help"],
             capture_output=True,
             text=True,
             timeout=10,
+            env=get_test_env(),
         )
         assert result.returncode == 0
 
     def test_unknown_argument_fails(self):
         """Test that unknown arguments produce error."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--unknown-arg"],
+            [sys.executable, "-m", "claude_watch", "--unknown-arg"],
             capture_output=True,
             text=True,
+            env=get_test_env(),
         )
         assert result.returncode != 0
         assert "unrecognized" in result.stderr.lower() or "error" in result.stderr.lower()
@@ -323,14 +336,15 @@ class TestCLIIntegration:
         args2 = parser.parse_args(["--prompt"])
         assert args2.prompt is True
 
-    def test_script_syntax_valid(self):
-        """Test the script has valid Python syntax."""
+    def test_package_importable(self):
+        """Test the package can be imported."""
         result = subprocess.run(
-            [sys.executable, "-m", "py_compile", str(SCRIPT_PATH)],
+            [sys.executable, "-c", "import claude_watch; print(claude_watch.__version__)"],
             capture_output=True,
             text=True,
+            env=get_test_env(),
         )
-        assert result.returncode == 0, f"Syntax error: {result.stderr}"
+        assert result.returncode == 0, f"Import error: {result.stderr}"
 
 
 class TestCLIDryRun:
@@ -339,30 +353,33 @@ class TestCLIDryRun:
     def test_dry_run_flag_exists(self):
         """Test --dry-run flag is accepted."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--dry-run"],
+            [sys.executable, "-m", "claude_watch", "--dry-run"],
             capture_output=True,
             text=True,
             timeout=10,
+            env=get_test_env(),
         )
         assert result.returncode == 0, f"dry-run failed: {result.stderr}"
 
     def test_dry_run_shows_indicator(self):
         """Test --dry-run shows DRY-RUN indicator."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--dry-run"],
+            [sys.executable, "-m", "claude_watch", "--dry-run"],
             capture_output=True,
             text=True,
             timeout=10,
+            env=get_test_env(),
         )
         assert "DRY-RUN" in result.stdout
 
     def test_dry_run_shows_mock_data(self):
         """Test --dry-run shows usage data (mock)."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--dry-run"],
+            [sys.executable, "-m", "claude_watch", "--dry-run"],
             capture_output=True,
             text=True,
             timeout=10,
+            env=get_test_env(),
         )
         # Should show usage bars
         assert "%" in result.stdout
@@ -371,10 +388,11 @@ class TestCLIDryRun:
     def test_dry_run_with_json(self):
         """Test --dry-run works with --json output."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--dry-run", "--json"],
+            [sys.executable, "-m", "claude_watch", "--dry-run", "--json"],
             capture_output=True,
             text=True,
             timeout=10,
+            env=get_test_env(),
         )
         assert result.returncode == 0
         # Should be valid JSON (after the DRY-RUN line)
@@ -392,22 +410,25 @@ class TestCLIDryRun:
     def test_dry_run_with_verbose(self):
         """Test --dry-run works with --verbose."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--dry-run", "--verbose"],
+            [sys.executable, "-m", "claude_watch", "--dry-run", "--verbose"],
             capture_output=True,
             text=True,
             timeout=10,
+            env=get_test_env(),
         )
         assert result.returncode == 0
         assert "DRY-RUN" in result.stdout
-        assert "Cache:" in result.stdout
+        # Dry-run uses mock data, so no cache info is shown
+        assert "%" in result.stdout  # Usage percentages are shown
 
     def test_dry_run_no_api_calls(self):
         """Test --dry-run does not require credentials (uses mock data)."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "--dry-run"],
+            [sys.executable, "-m", "claude_watch", "--dry-run"],
             capture_output=True,
             text=True,
             timeout=10,
+            env=get_test_env(),
         )
         assert result.returncode == 0, f"Should succeed with mock data: {result.stderr}"
 

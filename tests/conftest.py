@@ -1,8 +1,7 @@
 """
 Pytest fixtures for claude-watch tests.
 
-Test imports use the src/claude_watch/ package via --import-mode=importlib (see pyproject.toml).
-The standalone claude_watch.py script is tested separately via subprocess.
+Test imports use the src/claude_watch/ package.
 """
 
 import json

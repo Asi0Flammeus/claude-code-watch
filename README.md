@@ -31,45 +31,37 @@ See [docs/FEATURES.md](docs/FEATURES.md) for detailed specifications.
 
 ## Installation
 
-### Option 1: uv (Recommended)
-
-[uv](https://docs.astral.sh/uv/) is the fastest way to install Python CLI tools:
+### One-liner (Recommended)
 
 ```bash
-# Install uv if you don't have it
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install directly from GitHub
-uv tool install git+https://github.com/Asi0Flammeus/claude-code-watch
-
-# Run
-claude-watch           # Current usage
-claude-watch -a        # With analytics
-ccw                    # Short alias (included)
+curl -fsSL https://raw.githubusercontent.com/Asi0Flammeus/claude-code-watch/main/install.sh | bash
 ```
 
-Update later with: `uv tool upgrade claude-watch`
+This auto-detects and uses the best available installer (uv > pipx > pip).
 
-### Option 2: pipx
+### Manual Install
 
-If you prefer [pipx](https://pipx.pypa.io/):
+**uv** (fastest):
+```bash
+uv tool install git+https://github.com/Asi0Flammeus/claude-code-watch
+```
 
+**pipx**:
 ```bash
 pipx install git+https://github.com/Asi0Flammeus/claude-code-watch
 ```
 
-### Option 3: Direct Download
+**pip**:
+```bash
+pip install git+https://github.com/Asi0Flammeus/claude-code-watch
+```
 
-Single-file install without any package manager:
+### Update
 
 ```bash
-curl -o ~/.local/bin/claude-watch \
-  https://raw.githubusercontent.com/Asi0Flammeus/claude-code-watch/main/claude_watch.py
-
-chmod +x ~/.local/bin/claude-watch
-
-# Optional: create short alias
-ln -s ~/.local/bin/claude-watch ~/.local/bin/ccw
+ccw --update              # Check and install updates
+ccw --update check        # Check only
+uv tool upgrade claude-watch  # Or use uv directly
 ```
 
 ## Quick Start

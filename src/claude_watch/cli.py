@@ -26,21 +26,19 @@ def create_parser() -> argparse.ArgumentParser:
 Examples:
   claude-watch              Show usage in formatted view
   claude-watch --analytics  Show detailed analytics and trends
+  claude-watch --forecast   Show usage forecast and recommendations
   claude-watch --setup      Run interactive setup wizard
-  claude-watch --config     Show current configuration (default: show)
-  claude-watch --config show  Explicitly show current configuration
-  claude-watch --config reset Reset configuration to defaults
-  claude-watch --config set subscription_plan max_5x  Set a config value
+  claude-watch --config     Show current configuration
   claude-watch --json       Output raw JSON data
-  claude-watch --prompt     Output for shell prompt (default format)
-  claude-watch -p minimal   Shell prompt in minimal format
+  claude-watch --export csv Export history to CSV
+  claude-watch --export json -d 7  Export last 7 days as JSON
+  claude-watch --notify     Send notification if usage high
+  claude-watch --notify-daemon  Run notification daemon
+  claude-watch --install-hook   Install Claude Code hook
+  claude-watch --prompt     Output for shell prompt
   claude-watch --tmux       Output for tmux status bar
-  claude-watch --verbose    Show timing and cache info
-  claude-watch --quiet      Silent mode for scripts
-  claude-watch --dry-run    Test without API calls (uses mock data)
-  claude-watch --version    Show version and system info
+  claude-watch --watch      Live updating display
   claude-watch --update     Check for and install updates
-  claude-watch -U check     Check for updates without installing
   ccw                       Short alias (add to shell config)
 
 Setup:
@@ -135,6 +133,70 @@ Setup:
         type=int,
         metavar="SEC",
         help="Live updating display. Interval: 10-300 seconds (default: 30).",
+    )
+
+    # Export arguments
+    parser.add_argument(
+        "--export",
+        choices=["csv", "json"],
+        metavar="FORMAT",
+        help="Export history data. FORMAT: csv or json.",
+    )
+    parser.add_argument(
+        "--days",
+        "-d",
+        type=int,
+        metavar="N",
+        help="Filter export to last N days (default: all history).",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        metavar="FILE",
+        help="Output file for export (default: stdout).",
+    )
+    parser.add_argument(
+        "--excel",
+        action="store_true",
+        help="Add UTF-8 BOM for Excel compatibility (CSV only).",
+    )
+
+    # Forecast arguments
+    parser.add_argument(
+        "--forecast",
+        "-f",
+        action="store_true",
+        help="Show usage forecast with projections and recommendations.",
+    )
+
+    # Notification arguments
+    parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="Show desktop notification if usage exceeds thresholds.",
+    )
+    parser.add_argument(
+        "--notify-at",
+        metavar="THRESHOLDS",
+        default="80,90,95",
+        help="Comma-separated thresholds for notifications (default: 80,90,95).",
+    )
+    parser.add_argument(
+        "--notify-daemon",
+        action="store_true",
+        help="Run as background daemon checking usage periodically.",
+    )
+
+    # Hook arguments
+    parser.add_argument(
+        "--generate-hook",
+        action="store_true",
+        help="Generate Claude Code hook script for usage monitoring.",
+    )
+    parser.add_argument(
+        "--install-hook",
+        action="store_true",
+        help="Generate and install hook to ~/.claude/settings.json.",
     )
 
     return parser
@@ -426,6 +488,32 @@ def main() -> None:
         )
         return
 
+    # Handle --export flag
+    if args.export:
+        from claude_watch.export import run_export
+
+        exit_code = run_export(args.export, args.days, args.output, args.excel)
+        sys.exit(exit_code)
+
+    # Handle --generate-hook and --install-hook flags
+    if args.generate_hook or args.install_hook:
+        from claude_watch.hooks import run_generate_hook
+
+        exit_code = run_generate_hook(install=args.install_hook)
+        sys.exit(exit_code)
+
+    # Handle --notify-daemon flag
+    if args.notify_daemon:
+        from claude_watch.notify import run_notify_daemon
+
+        thresholds = [int(t.strip()) for t in args.notify_at.split(",")]
+
+        def fetch_for_notify():
+            return fetch_usage_cached(cache_ttl=0, silent=True)
+
+        run_notify_daemon(thresholds, fetch_func=fetch_for_notify)
+        return
+
     # Fetch usage data
     start_time = time.time()
     try:
@@ -440,6 +528,26 @@ def main() -> None:
     # Record to history (unless --no-record)
     if not args.no_record and data:
         record_usage(data)
+
+    # Handle --notify flag (single check)
+    if args.notify:
+        from claude_watch.notify import check_and_notify
+
+        thresholds = [int(t.strip()) for t in args.notify_at.split(",")]
+        exit_code = check_and_notify(data, thresholds, verbose=not args.quiet)
+        sys.exit(exit_code)
+
+    # Handle --forecast flag
+    if args.forecast:
+        from claude_watch.forecast import display_forecast, display_forecast_json
+
+        history = load_history()
+        if args.json:
+            display_forecast_json(data, history, config)
+        else:
+            display_usage(data)
+            display_forecast(data, history, config)
+        return
 
     # Handle --analytics flag
     if args.analytics:

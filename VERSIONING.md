@@ -26,11 +26,11 @@ Claude-Watch follows a TODO-progress-based semantic versioning scheme.
 ### After completing a task (patch bump):
 
 ```bash
-# 1. Update __version__ in claude_watch.py
+# 1. Update __version__ in src/claude_watch/_version.py
 #    e.g., "0.1.0" → "0.1.1"
 
 # 2. Commit
-git add claude_watch.py
+git add src/claude_watch/_version.py
 git commit -m "chore(version): bump to 0.1.1"
 
 # 3. Tag and push
@@ -41,11 +41,11 @@ git push origin main --tags
 ### After completing a phase (minor bump):
 
 ```bash
-# 1. Update __version__ in claude_watch.py
+# 1. Update __version__ in src/claude_watch/_version.py
 #    e.g., "0.1.5" → "0.2.0"
 
 # 2. Commit
-git add claude_watch.py
+git add src/claude_watch/_version.py
 git commit -m "chore(version): bump to 0.2.0 (Phase 2 complete)"
 
 # 3. Tag and push
