@@ -330,6 +330,25 @@ def main() -> None:
             display_usage(data)
         return
 
+    # Handle --prompt with cached-first strategy (fast for shell prompts)
+    if args.prompt:
+        from claude_watch.api.cache import get_stale_cache, load_cache
+        from claude_watch.display.prompt import format_prompt
+
+        # Try cache first (prefer speed over freshness for prompts)
+        data = load_cache()
+        if data is None:
+            data = get_stale_cache()
+        if data is None:
+            # No cache at all, fetch silently
+            data = fetch_usage_cached(silent=True)
+        if data is None:
+            # Still nothing, show empty prompt
+            print("")
+            return
+        print(format_prompt(data, args.prompt))
+        return
+
     # Fetch usage data
     start_time = time.time()
     try:
@@ -354,12 +373,6 @@ def main() -> None:
         else:
             display_usage(data)
             display_analytics(data, history, config)
-        return
-
-    # Handle --prompt flag
-    if args.prompt:
-        from claude_watch.display.prompt import format_prompt
-        print(format_prompt(data, args.prompt))
         return
 
     # Handle --json output
