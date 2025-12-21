@@ -223,6 +223,15 @@ def save_config(config: dict, config_file: Optional[Path] = None) -> None:
     os.chmod(config_file, 0o600)
 
 
+def reset_config(config_file: Optional[Path] = None) -> None:
+    """Reset configuration to default values.
+
+    Args:
+        config_file: Optional path to config file. Defaults to CONFIG_FILE.
+    """
+    save_config(DEFAULT_CONFIG.copy(), config_file=config_file)
+
+
 __all__ = [
     "CONFIG_FILE",
     "DEFAULT_CONFIG",
@@ -233,4 +242,5 @@ __all__ = [
     "migrate_config",
     "load_config",
     "save_config",
+    "reset_config",
 ]

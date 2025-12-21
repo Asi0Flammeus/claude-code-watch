@@ -5,11 +5,12 @@ including API integration, configuration management, and display formatting.
 """
 
 from claude_watch._version import __version__
-from claude_watch.cli import create_parser, handle_config_command, print_version
+from claude_watch.cli import create_parser, handle_config_command, main, print_version
 
 __all__ = [
     "__version__",
     "create_parser",
+    "main",
     "print_version",
     "handle_config_command",
 ]
