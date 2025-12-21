@@ -203,11 +203,43 @@ def format_prompt_icon(data: dict) -> str:
     return f"{icon}{pct}%"
 
 
+def get_usage_color_code(utilization: float) -> tuple[str, str]:
+    """Get ANSI color codes for usage level.
+
+    Args:
+        utilization: Usage percentage (0-100).
+
+    Returns:
+        Tuple of (color_start, color_reset) ANSI escape sequences.
+    """
+    if utilization >= 90:
+        return "\033[31m", "\033[0m"  # Red
+    elif utilization >= 75:
+        return "\033[33m", "\033[0m"  # Yellow
+    else:
+        return "\033[32m", "\033[0m"  # Green
+
+
+def colorize_prompt(output: str, utilization: float) -> str:
+    """Add ANSI color codes to prompt output.
+
+    Args:
+        output: The prompt string to colorize.
+        utilization: Usage percentage for color selection.
+
+    Returns:
+        Colorized prompt string.
+    """
+    color_start, color_reset = get_usage_color_code(utilization)
+    return f"{color_start}{output}{color_reset}"
+
+
 def format_prompt(
     data: dict,
     fmt: str = "default",
     include_trend: bool = True,
     history: Optional[list] = None,
+    color: bool = False,
 ) -> str:
     """Format usage data for shell prompt output.
 
@@ -216,6 +248,7 @@ def format_prompt(
         fmt: Format type - 'default', 'minimal', 'full', or 'icon'.
         include_trend: Whether to include trend indicator (default: True).
         history: Optional history list for trend calculation.
+        color: Whether to include ANSI color codes (default: False).
 
     Returns:
         Formatted string for shell prompt.
@@ -239,6 +272,11 @@ def format_prompt(
         trend = get_trend_indicator(data, history)
         result = f"{result}{trend}"
 
+    if color:
+        five_hour = data.get("five_hour") or {}
+        utilization = five_hour.get("utilization", 0)
+        result = colorize_prompt(result, utilization)
+
     return result
 
 
@@ -251,4 +289,6 @@ __all__ = [
     "format_reset_compact",
     "calculate_trend",
     "get_trend_indicator",
+    "get_usage_color_code",
+    "colorize_prompt",
 ]

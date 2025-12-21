@@ -116,6 +116,11 @@ Setup:
         metavar="FORMAT",
         help="Output for shell prompt integration. Formats: default, minimal, full, icon.",
     )
+    parser.add_argument(
+        "--prompt-color",
+        action="store_true",
+        help="Include ANSI color codes in prompt output (for color-capable shells).",
+    )
 
     return parser
 
@@ -325,7 +330,7 @@ def main() -> None:
             print(json.dumps(data, indent=2))
         elif args.prompt:
             from claude_watch.display.prompt import format_prompt
-            print(format_prompt(data, args.prompt))
+            print(format_prompt(data, args.prompt, color=args.prompt_color))
         else:
             display_usage(data)
         return
@@ -347,7 +352,7 @@ def main() -> None:
             print("")
             sys.exit(3)
 
-        print(format_prompt(data, args.prompt))
+        print(format_prompt(data, args.prompt, color=args.prompt_color))
 
         # Set exit code based on usage level
         five_hour = data.get("five_hour") or {}
