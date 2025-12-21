@@ -31,7 +31,7 @@ import shutil
 # Version
 # ═══════════════════════════════════════════════════════════════════════════════
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Configuration
@@ -509,10 +509,11 @@ def run_upgrade(method: str) -> Tuple[bool, str]:
     Returns:
         (success, message) tuple
     """
+    github_url = f"git+https://github.com/{GITHUB_REPO}.git"
     commands = {
-        "uv": ["uv", "tool", "upgrade", "claude-watch"],
-        "pipx": ["pipx", "upgrade", "claude-watch"],
-        "pip": [sys.executable, "-m", "pip", "install", "--upgrade", "claude-watch"],
+        "uv": ["uv", "tool", "install", github_url, "--force", "--reinstall"],
+        "pipx": ["pipx", "install", github_url, "--force"],
+        "pip": [sys.executable, "-m", "pip", "install", "--upgrade", github_url],
     }
 
     cmd = commands.get(method)
