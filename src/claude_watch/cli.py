@@ -32,6 +32,8 @@ Examples:
   claude-watch --config reset Reset configuration to defaults
   claude-watch --config set subscription_plan max_5x  Set a config value
   claude-watch --json       Output raw JSON data
+  claude-watch --prompt     Output for shell prompt (default format)
+  claude-watch -p minimal   Shell prompt in minimal format
   claude-watch --verbose    Show timing and cache info
   claude-watch --quiet      Silent mode for scripts
   claude-watch --dry-run    Test without API calls (uses mock data)
@@ -104,6 +106,15 @@ Setup:
         const="update",
         metavar="check",
         help="Check for and install updates. Use --update check to only check without installing.",
+    )
+    parser.add_argument(
+        "--prompt",
+        "-p",
+        nargs="?",
+        const="default",
+        choices=["default", "minimal", "full", "icon"],
+        metavar="FORMAT",
+        help="Output for shell prompt integration. Formats: default, minimal, full, icon.",
     )
 
     return parser
