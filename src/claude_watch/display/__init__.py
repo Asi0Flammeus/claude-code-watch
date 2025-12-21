@@ -26,6 +26,7 @@ from claude_watch.display.colors import Colors, init_colors, supports_color
 from claude_watch.display.progress import format_percentage, get_usage_color, make_progress_bar
 from claude_watch.display.spinner import Spinner
 from claude_watch.display.usage import display_usage, print_usage_row
+from claude_watch.display.tmux import format_tmux, format_tmux_minimal, get_tmux_color
 
 __all__ = [
     "Colors",
@@ -49,4 +50,7 @@ __all__ = [
     "SUBSCRIPTION_PLANS",
     "API_PRICING",
     "HISTORY_FILE",
+    "format_tmux",
+    "format_tmux_minimal",
+    "get_tmux_color",
 ]

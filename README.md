@@ -19,9 +19,9 @@ A command-line tool to monitor your Claude Code subscription usage, similar to [
 ### Roadmap
 
 - [x] [**Shell prompt**](docs/FEATURES.md#1-shell-prompt-integration---prompt) - Compact output for PS1/starship/oh-my-zsh
+- [x] [**Tmux integration**](docs/FEATURES.md#4-tmux-integration---tmux) - Status bar with session % and reset time
 - [ ] [**Watch mode**](docs/FEATURES.md#2-watch-mode---watch) - Live updating display
 - [ ] [**Notifications**](docs/FEATURES.md#3-desktop-notifications---notify) - Desktop alerts at usage thresholds
-- [ ] [**Tmux integration**](docs/FEATURES.md#4-tmux-integration---tmux) - Status bar with session % and reset time
 - [ ] [**Hook generator**](docs/FEATURES.md#5-hook-generator---generate-hook) - Claude Code pre-session warnings
 - [ ] [**Forecast**](docs/FEATURES.md#6-enhanced-forecast---forecast) - Predict when limits will be hit
 - [ ] [**HTML reports**](docs/FEATURES.md#7-html-report---report) - Weekly/monthly usage reports
@@ -109,6 +109,7 @@ Resets Mon 6:59 PM
 | `claude-watch --config` | Show configuration |
 | `claude-watch --prompt` | Compact output for shell prompts |
 | `claude-watch -p minimal` | Minimal prompt format |
+| `claude-watch --tmux` | Output for tmux status bar |
 | `claude-watch --no-color` | Disable colors (for piping) |
 | `claude-watch --no-record` | Don't save to history |
 | `ccw` | Short alias (configure in shell) |
@@ -169,6 +170,41 @@ style = "blue"
 ```zsh
 # Create ~/.oh-my-zsh/custom/themes/claude.zsh-theme
 PROMPT='%{$fg[cyan]%}%c%{$reset_color%} $(claude-watch -p icon 2>/dev/null) %(!.#.$) '
+```
+
+### Tmux Integration
+
+The `--tmux` flag outputs usage with tmux-specific color codes:
+
+```bash
+claude-watch --tmux    # #[fg=green]S:45% 2h15m #[fg=green]W:12%#[default]
+```
+
+**Exit codes** match `--prompt` for conditional coloring in tmux:
+- `0` - OK (green)
+- `1` - Warning (yellow, 75-89%)
+- `2` - Critical (red, ≥90%)
+- `3` - Error
+
+#### Tmux Status Bar
+
+```tmux
+# Add to ~/.tmux.conf
+set -g status-right '#(claude-watch --tmux 2>/dev/null)'
+set -g status-interval 60  # Update every 60 seconds
+```
+
+For more control, use a script:
+
+```bash
+# ~/.local/bin/tmux-claude-usage
+#!/bin/bash
+claude-watch --tmux 2>/dev/null || echo "#[fg=yellow]?#[default]"
+```
+
+```tmux
+# In ~/.tmux.conf
+set -g status-right '#(~/.local/bin/tmux-claude-usage)'
 ```
 
 ### Environment Variables

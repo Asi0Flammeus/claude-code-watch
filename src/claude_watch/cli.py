@@ -34,6 +34,7 @@ Examples:
   claude-watch --json       Output raw JSON data
   claude-watch --prompt     Output for shell prompt (default format)
   claude-watch -p minimal   Shell prompt in minimal format
+  claude-watch --tmux       Output for tmux status bar
   claude-watch --verbose    Show timing and cache info
   claude-watch --quiet      Silent mode for scripts
   claude-watch --dry-run    Test without API calls (uses mock data)
@@ -120,6 +121,11 @@ Setup:
         "--prompt-color",
         action="store_true",
         help="Include ANSI color codes in prompt output (for color-capable shells).",
+    )
+    parser.add_argument(
+        "--tmux",
+        action="store_true",
+        help="Output optimized for tmux status bar with tmux color codes.",
     )
 
     return parser
@@ -331,6 +337,9 @@ def main() -> None:
         elif args.prompt:
             from claude_watch.display.prompt import format_prompt
             print(format_prompt(data, args.prompt, color=args.prompt_color))
+        elif args.tmux:
+            from claude_watch.display.tmux import format_tmux
+            print(format_tmux(data))
         else:
             display_usage(data)
         return
@@ -353,6 +362,34 @@ def main() -> None:
             sys.exit(3)
 
         print(format_prompt(data, args.prompt, color=args.prompt_color))
+
+        # Set exit code based on usage level
+        five_hour = data.get("five_hour") or {}
+        utilization = five_hour.get("utilization", 0)
+        if utilization >= 90:
+            sys.exit(2)  # Critical
+        elif utilization >= 75:
+            sys.exit(1)  # Warning
+        sys.exit(0)  # OK
+
+    # Handle --tmux with cached-first strategy (fast for tmux status bar)
+    if args.tmux:
+        from claude_watch.api.cache import get_stale_cache, load_cache
+        from claude_watch.display.tmux import format_tmux
+
+        # Try cache first (prefer speed over freshness for status bar)
+        data = load_cache()
+        if data is None:
+            data = get_stale_cache()
+        if data is None:
+            # No cache at all, fetch silently
+            data = fetch_usage_cached(silent=True)
+        if data is None:
+            # Still nothing, show empty output with error exit code
+            print("")
+            sys.exit(3)
+
+        print(format_tmux(data))
 
         # Set exit code based on usage level
         five_hour = data.get("five_hour") or {}

@@ -31,7 +31,7 @@ import shutil
 # Version
 # ═══════════════════════════════════════════════════════════════════════════════
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Configuration
@@ -1545,6 +1545,23 @@ def format_relative_time(reset_at: str) -> str:
     return "< 1 min"
 
 
+def format_reset_compact(reset_at: str) -> str:
+    """Format reset time as compact duration (e.g., '2h15m')."""
+    reset_dt = parse_reset_time(reset_at)
+    now = datetime.now(timezone.utc)
+    delta = reset_dt - now
+    total_seconds = max(0, int(delta.total_seconds()))
+
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+
+    if hours > 0:
+        return f"{hours}h{minutes:02d}m"
+    elif minutes > 0:
+        return f"{minutes}m"
+    return "<1m"
+
+
 def format_absolute_time(reset_at: str) -> str:
     reset_dt = parse_reset_time(reset_at)
     local_dt = reset_dt.astimezone()
@@ -1636,6 +1653,56 @@ def display_usage(data: dict):
 
     print(f"{Colors.DIM}Last updated: just now{Colors.RESET}")
     print()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tmux Status Bar Formatting
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def get_tmux_color(utilization: float) -> str:
+    """Get tmux color name based on usage level."""
+    if utilization >= 90:
+        return "red"
+    elif utilization >= 75:
+        return "yellow"
+    return "green"
+
+
+def format_tmux(data: dict) -> str:
+    """Format usage data for tmux status bar.
+
+    Output format: 'S:45% 2h15m W:12%' with tmux color codes.
+    """
+    five_hour = data.get("five_hour") or {}
+    seven_day = data.get("seven_day") or {}
+
+    session_pct = int(five_hour.get("utilization", 0))
+    weekly_pct = int(seven_day.get("utilization", 0))
+    resets_at = five_hour.get("resets_at", "")
+
+    # Get colors based on usage levels
+    session_color = get_tmux_color(session_pct)
+    weekly_color = get_tmux_color(weekly_pct)
+
+    # Build session part with reset time
+    reset_str = format_reset_compact(resets_at) if resets_at else ""
+
+    # Build output with tmux color codes
+    parts = []
+
+    # Session usage with color
+    session_part = f"#[fg={session_color}]S:{session_pct}%"
+    if reset_str:
+        session_part += f" {reset_str}"
+    parts.append(session_part)
+
+    # Weekly usage with color
+    weekly_part = f"#[fg={weekly_color}]W:{weekly_pct}%"
+    parts.append(weekly_part)
+
+    # Reset color at end
+    return " ".join(parts) + "#[default]"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2355,6 +2422,7 @@ Examples:
   claude-watch --config reset Reset configuration to defaults
   claude-watch --config set subscription_plan max_5x  Set a config value
   claude-watch --json       Output raw JSON data
+  claude-watch --tmux       Output for tmux status bar
   claude-watch --verbose    Show timing and cache info
   claude-watch --quiet      Silent mode for scripts
   claude-watch --dry-run    Test without API calls (uses mock data)
@@ -2428,6 +2496,11 @@ Setup:
         metavar="check",
         help="Check for and install updates. Use --update check to only check without installing.",
     )
+    parser.add_argument(
+        "--tmux",
+        action="store_true",
+        help="Output optimized for tmux status bar with tmux color codes.",
+    )
 
     args = parser.parse_args()
 
@@ -2446,6 +2519,35 @@ Setup:
         check_only = args.update == "check"
         exit_code = run_update(check_only=check_only)
         sys.exit(exit_code)
+
+    # Handle --tmux with cached-first strategy (fast for tmux status bar)
+    if args.tmux:
+        # Handle dry-run mode for tmux
+        if args.dry_run:
+            data = get_mock_usage_data()
+        else:
+            # Try cache first (prefer speed over freshness for status bar)
+            data = load_cache()
+            if data is None:
+                data = get_stale_cache()
+            if data is None:
+                # No cache at all, fetch silently
+                data = fetch_usage_cached(silent=True)
+            if data is None:
+                # Still nothing, show empty output with error exit code
+                print("")
+                sys.exit(3)
+
+        print(format_tmux(data))
+
+        # Set exit code based on usage level
+        five_hour = data.get("five_hour") or {}
+        utilization = five_hour.get("utilization", 0)
+        if utilization >= 90:
+            sys.exit(2)  # Critical
+        elif utilization >= 75:
+            sys.exit(1)  # Warning
+        sys.exit(0)  # OK
 
     # Handle setup and config commands
     if args.setup:
