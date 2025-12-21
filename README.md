@@ -18,7 +18,7 @@ A command-line tool to monitor your Claude Code subscription usage, similar to [
 
 ### Roadmap
 
-- [ ] [**Shell prompt**](docs/FEATURES.md#1-shell-prompt-integration---prompt) - Compact output for PS1/starship/oh-my-zsh
+- [x] [**Shell prompt**](docs/FEATURES.md#1-shell-prompt-integration---prompt) - Compact output for PS1/starship/oh-my-zsh
 - [ ] [**Watch mode**](docs/FEATURES.md#2-watch-mode---watch) - Live updating display
 - [ ] [**Notifications**](docs/FEATURES.md#3-desktop-notifications---notify) - Desktop alerts at usage thresholds
 - [ ] [**Tmux integration**](docs/FEATURES.md#4-tmux-integration---tmux) - Status bar with session % and reset time
@@ -107,9 +107,69 @@ Resets Mon 6:59 PM
 | `claude-watch -j` | Output raw JSON |
 | `claude-watch --setup` | Run setup wizard |
 | `claude-watch --config` | Show configuration |
+| `claude-watch --prompt` | Compact output for shell prompts |
+| `claude-watch -p minimal` | Minimal prompt format |
 | `claude-watch --no-color` | Disable colors (for piping) |
 | `claude-watch --no-record` | Don't save to history |
 | `ccw` | Short alias (configure in shell) |
+
+### Shell Prompt Integration
+
+Embed usage in your shell prompt with `--prompt`:
+
+```bash
+claude-watch --prompt              # S:45% 2h15m→ (default format)
+claude-watch -p minimal            # 45%→
+claude-watch -p full               # S:45% W:12%→
+claude-watch -p icon               # 🟢45%→
+claude-watch --prompt --prompt-color  # With ANSI colors
+```
+
+**Exit codes** for scripting:
+- `0` - OK (usage < 75%)
+- `1` - Warning (75-89%)
+- `2` - Critical (≥90%)
+- `3` - Error (no data)
+
+**Trend indicators**: `↑` increasing, `↓` decreasing, `→` stable
+
+#### Bash (PS1)
+
+```bash
+# Add to ~/.bashrc
+claude_usage() {
+    claude-watch -p minimal 2>/dev/null || echo "?"
+}
+PS1='[\u@\h \W $(claude_usage)] \$ '
+```
+
+#### Zsh
+
+```zsh
+# Add to ~/.zshrc
+claude_usage() {
+    claude-watch -p icon 2>/dev/null || echo "?"
+}
+RPROMPT='$(claude_usage)'
+```
+
+#### Starship
+
+```toml
+# Add to ~/.config/starship.toml
+[custom.claude]
+command = "claude-watch -p minimal"
+when = true
+format = "[$output]($style) "
+style = "blue"
+```
+
+#### Oh-My-Zsh
+
+```zsh
+# Create ~/.oh-my-zsh/custom/themes/claude.zsh-theme
+PROMPT='%{$fg[cyan]%}%c%{$reset_color%} $(claude-watch -p icon 2>/dev/null) %(!.#.$) '
+```
 
 ### Environment Variables
 
