@@ -5,6 +5,12 @@ Modules:
     credentials: Credential storage and retrieval
 """
 
+from claude_watch.config.credentials import (
+    get_access_token,
+    get_credentials,
+    get_credentials_path,
+    get_macos_keychain_credentials,
+)
 from claude_watch.config.settings import (
     CONFIG_FILE,
     CONFIG_SCHEMA,
@@ -18,6 +24,7 @@ from claude_watch.config.settings import (
 )
 
 __all__ = [
+    # Settings
     "CONFIG_FILE",
     "DEFAULT_CONFIG",
     "SUBSCRIPTION_PLANS",
@@ -27,4 +34,9 @@ __all__ = [
     "migrate_config",
     "load_config",
     "save_config",
+    # Credentials
+    "get_credentials_path",
+    "get_macos_keychain_credentials",
+    "get_credentials",
+    "get_access_token",
 ]
