@@ -186,6 +186,74 @@ class TestCLIColors:
         supports_color()  # Should not raise
 
 
+class TestCLIEnvironmentVariables:
+    """Tests for environment variable overrides."""
+
+    def test_cache_ttl_env_var_override(self):
+        """Test CLAUDE_WATCH_CACHE_TTL env var overrides default."""
+        import os
+
+        env = os.environ.copy()
+        env["CLAUDE_WATCH_CACHE_TTL"] = "120"
+        result = subprocess.run(
+            [sys.executable, "-c", "import claude_watch; print(claude_watch.CACHE_MAX_AGE)"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=PROJECT_ROOT,
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == "120"
+
+    def test_cache_ttl_env_var_invalid_uses_default(self):
+        """Test invalid CLAUDE_WATCH_CACHE_TTL falls back to default."""
+        import os
+
+        env = os.environ.copy()
+        env["CLAUDE_WATCH_CACHE_TTL"] = "invalid"
+        result = subprocess.run(
+            [sys.executable, "-c", "import claude_watch; print(claude_watch.CACHE_MAX_AGE)"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=PROJECT_ROOT,
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == "60"  # Default value
+
+    def test_history_days_env_var_override(self):
+        """Test CLAUDE_WATCH_HISTORY_DAYS env var overrides default."""
+        import os
+
+        env = os.environ.copy()
+        env["CLAUDE_WATCH_HISTORY_DAYS"] = "90"
+        result = subprocess.run(
+            [sys.executable, "-c", "import claude_watch; print(claude_watch.MAX_HISTORY_DAYS)"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=PROJECT_ROOT,
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == "90"
+
+    def test_history_days_env_var_invalid_uses_default(self):
+        """Test invalid CLAUDE_WATCH_HISTORY_DAYS falls back to default."""
+        import os
+
+        env = os.environ.copy()
+        env["CLAUDE_WATCH_HISTORY_DAYS"] = "not-a-number"
+        result = subprocess.run(
+            [sys.executable, "-c", "import claude_watch; print(claude_watch.MAX_HISTORY_DAYS)"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=PROJECT_ROOT,
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == "180"  # Default value
+
+
 class TestCLIConfig:
     """Tests for --config command."""
 

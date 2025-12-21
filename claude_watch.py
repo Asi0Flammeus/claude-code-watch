@@ -43,8 +43,21 @@ API_BETA_HEADER = "oauth-2025-04-20"
 CONFIG_FILE = Path.home() / ".claude" / ".usage_config.json"
 HISTORY_FILE = Path.home() / ".claude" / ".usage_history.json"
 CACHE_FILE = Path.home() / ".claude" / ".usage_cache.json"
-MAX_HISTORY_DAYS = 180  # 6 months
-CACHE_MAX_AGE = 60  # seconds
+MAX_HISTORY_DAYS = 180  # 6 months (override with CLAUDE_WATCH_HISTORY_DAYS)
+CACHE_MAX_AGE = 60  # seconds (override with CLAUDE_WATCH_CACHE_TTL)
+
+# Apply environment variable overrides
+if os.environ.get("CLAUDE_WATCH_CACHE_TTL"):
+    try:
+        CACHE_MAX_AGE = int(os.environ["CLAUDE_WATCH_CACHE_TTL"])
+    except ValueError:
+        pass  # Keep default if invalid
+
+if os.environ.get("CLAUDE_WATCH_HISTORY_DAYS"):
+    try:
+        MAX_HISTORY_DAYS = int(os.environ["CLAUDE_WATCH_HISTORY_DAYS"])
+    except ValueError:
+        pass  # Keep default if invalid
 
 # Systemd paths
 SYSTEMD_USER_DIR = Path.home() / ".config" / "systemd" / "user"

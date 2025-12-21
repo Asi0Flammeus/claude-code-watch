@@ -116,6 +116,8 @@ Resets Mon 6:59 PM
 | Variable | Description |
 |----------|-------------|
 | `CLAUDE_WATCH_NO_COLOR` | Disable colors when set to any non-empty value |
+| `CLAUDE_WATCH_CACHE_TTL` | Cache TTL in seconds (default: 60) |
+| `CLAUDE_WATCH_HISTORY_DAYS` | History retention in days (default: 180) |
 
 ## Setup Wizard
 
