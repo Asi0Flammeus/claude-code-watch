@@ -8,4 +8,6 @@ Modules:
     analytics: Analytics visualization
 """
 
-__all__: list[str] = []
+from claude_watch.display.colors import Colors, init_colors, supports_color
+
+__all__ = ["Colors", "supports_color", "init_colors"]
