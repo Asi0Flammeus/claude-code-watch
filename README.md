@@ -20,7 +20,7 @@ A command-line tool to monitor your Claude Code subscription usage, similar to [
 
 - [x] [**Shell prompt**](docs/FEATURES.md#1-shell-prompt-integration---prompt) - Compact output for PS1/starship/oh-my-zsh
 - [x] [**Tmux integration**](docs/FEATURES.md#4-tmux-integration---tmux) - Status bar with session % and reset time
-- [ ] [**Watch mode**](docs/FEATURES.md#2-watch-mode---watch) - Live updating display
+- [x] [**Watch mode**](docs/FEATURES.md#2-watch-mode---watch) - Live updating display
 - [ ] [**Notifications**](docs/FEATURES.md#3-desktop-notifications---notify) - Desktop alerts at usage thresholds
 - [ ] [**Hook generator**](docs/FEATURES.md#5-hook-generator---generate-hook) - Claude Code pre-session warnings
 - [ ] [**Forecast**](docs/FEATURES.md#6-enhanced-forecast---forecast) - Predict when limits will be hit
@@ -110,6 +110,8 @@ Resets Mon 6:59 PM
 | `claude-watch --prompt` | Compact output for shell prompts |
 | `claude-watch -p minimal` | Minimal prompt format |
 | `claude-watch --tmux` | Output for tmux status bar |
+| `claude-watch --watch` | Live updating display (30s interval) |
+| `claude-watch -w 60` | Live display with 60s interval |
 | `claude-watch --no-color` | Disable colors (for piping) |
 | `claude-watch --no-record` | Don't save to history |
 | `ccw` | Short alias (configure in shell) |

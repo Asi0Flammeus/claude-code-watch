@@ -127,6 +127,15 @@ Setup:
         action="store_true",
         help="Output optimized for tmux status bar with tmux color codes.",
     )
+    parser.add_argument(
+        "--watch",
+        "-w",
+        nargs="?",
+        const=30,
+        type=int,
+        metavar="SEC",
+        help="Live updating display. Interval: 10-300 seconds (default: 30).",
+    )
 
     return parser
 
@@ -399,6 +408,23 @@ def main() -> None:
         elif utilization >= 75:
             sys.exit(1)  # Warning
         sys.exit(0)  # OK
+
+    # Handle --watch mode
+    if args.watch is not None:
+        from claude_watch.display.watch import run_watch_mode
+
+        def fetch_for_watch():
+            return fetch_usage_cached(cache_ttl=0)  # Always fetch fresh data
+
+        run_watch_mode(
+            fetch_func=fetch_for_watch,
+            display_func=display_usage,
+            interval=args.watch,
+            analytics_mode=args.analytics,
+            history_func=load_history if args.analytics else None,
+            config=config if args.analytics else None,
+        )
+        return
 
     # Fetch usage data
     start_time = time.time()

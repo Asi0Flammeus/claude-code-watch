@@ -31,7 +31,7 @@ import shutil
 # Version
 # ═══════════════════════════════════════════════════════════════════════════════
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Configuration
@@ -1706,6 +1706,188 @@ def format_tmux(data: dict) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Watch Mode
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def clear_screen() -> None:
+    """Clear the terminal screen in a cross-platform way."""
+    if platform.system() == "Windows":
+        os.system("cls")
+    else:
+        sys.stdout.write("\033[2J\033[H")
+        sys.stdout.flush()
+
+
+def format_duration(seconds: int) -> str:
+    """Format duration in seconds as human-readable string."""
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0 or hours > 0:
+        parts.append(f"{minutes}m")
+    parts.append(f"{secs}s")
+
+    return " ".join(parts)
+
+
+def format_countdown(seconds_left: int) -> str:
+    """Format countdown timer."""
+    if seconds_left <= 0:
+        return "refreshing..."
+    return f"{seconds_left}s"
+
+
+def calculate_delta(initial_data: dict, current_data: dict) -> Optional[float]:
+    """Calculate usage delta from initial to current."""
+    initial_five_hour = initial_data.get("five_hour") or {}
+    current_five_hour = current_data.get("five_hour") or {}
+
+    initial_util = initial_five_hour.get("utilization")
+    current_util = current_five_hour.get("utilization")
+
+    if initial_util is not None and current_util is not None:
+        return current_util - initial_util
+    return None
+
+
+def format_delta(delta: Optional[float]) -> str:
+    """Format delta value with sign and color."""
+    if delta is None:
+        return ""
+
+    if delta > 0:
+        return f"{Colors.RED}+{delta:.1f}%{Colors.RESET}"
+    elif delta < 0:
+        return f"{Colors.GREEN}{delta:.1f}%{Colors.RESET}"
+    else:
+        return f"{Colors.DIM}±0.0%{Colors.RESET}"
+
+
+def print_watch_header(
+    interval: int,
+    countdown: int,
+    session_duration: int,
+    delta: Optional[float] = None,
+) -> None:
+    """Print the watch mode header with status information."""
+    now = datetime.now(timezone.utc).astimezone()
+    time_str = now.strftime("%H:%M:%S")
+
+    header_parts = [
+        f"{Colors.BOLD}{Colors.CYAN}Claude Watch{Colors.RESET}",
+        f"{Colors.DIM}|{Colors.RESET}",
+        f"Refresh: {format_countdown(countdown)}",
+        f"{Colors.DIM}|{Colors.RESET}",
+        f"Interval: {interval}s",
+        f"{Colors.DIM}|{Colors.RESET}",
+        f"Session: {format_duration(session_duration)}",
+    ]
+
+    if delta is not None:
+        header_parts.extend([
+            f"{Colors.DIM}|{Colors.RESET}",
+            f"Delta: {format_delta(delta)}",
+        ])
+
+    header_parts.extend([
+        f"{Colors.DIM}|{Colors.RESET}",
+        f"{Colors.DIM}{time_str}{Colors.RESET}",
+    ])
+
+    print(" ".join(header_parts))
+    print(f"{Colors.DIM}{'─' * 60}{Colors.RESET}")
+
+
+def print_watch_summary(
+    session_duration: int,
+    refresh_count: int,
+    initial_data: Optional[dict],
+    final_data: Optional[dict],
+) -> None:
+    """Print summary when exiting watch mode."""
+    print()
+    print(f"{Colors.BOLD}{Colors.CYAN}Watch Session Summary{Colors.RESET}")
+    print(f"{Colors.DIM}{'─' * 40}{Colors.RESET}")
+    print(f"Duration: {format_duration(session_duration)}")
+    print(f"Refreshes: {refresh_count}")
+
+    if initial_data and final_data:
+        delta = calculate_delta(initial_data, final_data)
+        if delta is not None:
+            print(f"Usage change: {format_delta(delta)}")
+
+    print()
+
+
+def run_watch_mode(
+    fetch_func,
+    display_func,
+    interval: int = 30,
+    analytics_mode: bool = False,
+    history_func=None,
+    config: Optional[dict] = None,
+) -> None:
+    """Run the watch mode loop."""
+    import time as _time
+
+    # Validate interval
+    interval = max(10, min(300, interval))
+
+    start_time = _time.time()
+    refresh_count = 0
+    initial_data = None
+    current_data = None
+
+    try:
+        while True:
+            loop_start = _time.time()
+            session_duration = int(loop_start - start_time)
+
+            # Fetch data
+            try:
+                current_data = fetch_func()
+                if initial_data is None:
+                    initial_data = current_data
+                refresh_count += 1
+            except Exception as e:
+                clear_screen()
+                print(f"{Colors.RED}Error fetching data: {e}{Colors.RESET}")
+                _time.sleep(interval)
+                continue
+
+            # Calculate delta
+            delta = None
+            if initial_data and current_data:
+                delta = calculate_delta(initial_data, current_data)
+
+            # Display
+            for countdown in range(interval, -1, -1):
+                clear_screen()
+                print_watch_header(interval, countdown, session_duration + (interval - countdown), delta)
+                print()
+
+                if analytics_mode and history_func:
+                    display_func(current_data)
+                    history = history_func()
+                    display_analytics(current_data, history, config or {})
+                else:
+                    display_func(current_data)
+
+                if countdown > 0:
+                    _time.sleep(1)
+
+    except KeyboardInterrupt:
+        session_duration = int(_time.time() - start_time)
+        clear_screen()
+        print_watch_summary(session_duration, refresh_count, initial_data, current_data)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Analytics Display
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2423,6 +2605,8 @@ Examples:
   claude-watch --config set subscription_plan max_5x  Set a config value
   claude-watch --json       Output raw JSON data
   claude-watch --tmux       Output for tmux status bar
+  claude-watch --watch      Live updating display (30s interval)
+  claude-watch -w 60        Live display with 60s interval
   claude-watch --verbose    Show timing and cache info
   claude-watch --quiet      Silent mode for scripts
   claude-watch --dry-run    Test without API calls (uses mock data)
@@ -2501,6 +2685,15 @@ Setup:
         action="store_true",
         help="Output optimized for tmux status bar with tmux color codes.",
     )
+    parser.add_argument(
+        "--watch",
+        "-w",
+        nargs="?",
+        const=30,
+        type=int,
+        metavar="SEC",
+        help="Live updating display. Interval: 10-300 seconds (default: 30).",
+    )
 
     args = parser.parse_args()
 
@@ -2548,6 +2741,23 @@ Setup:
         elif utilization >= 75:
             sys.exit(1)  # Warning
         sys.exit(0)  # OK
+
+    # Handle --watch mode
+    if args.watch is not None:
+        config = load_config()
+
+        def fetch_for_watch():
+            return fetch_usage_cached(cache_ttl=0)  # Always fetch fresh data
+
+        run_watch_mode(
+            fetch_func=fetch_for_watch,
+            display_func=display_usage,
+            interval=args.watch,
+            analytics_mode=args.analytics,
+            history_func=load_history if args.analytics else None,
+            config=config if args.analytics else None,
+        )
+        return
 
     # Handle setup and config commands
     if args.setup:

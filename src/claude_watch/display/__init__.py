@@ -27,6 +27,13 @@ from claude_watch.display.progress import format_percentage, get_usage_color, ma
 from claude_watch.display.spinner import Spinner
 from claude_watch.display.usage import display_usage, print_usage_row
 from claude_watch.display.tmux import format_tmux, format_tmux_minimal, get_tmux_color
+from claude_watch.display.watch import (
+    clear_screen,
+    format_duration,
+    run_watch_mode,
+    print_watch_header,
+    print_watch_summary,
+)
 
 __all__ = [
     "Colors",
@@ -53,4 +60,9 @@ __all__ = [
     "format_tmux",
     "format_tmux_minimal",
     "get_tmux_color",
+    "clear_screen",
+    "format_duration",
+    "run_watch_mode",
+    "print_watch_header",
+    "print_watch_summary",
 ]
