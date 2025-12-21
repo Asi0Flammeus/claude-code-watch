@@ -21,11 +21,11 @@ A command-line tool to monitor your Claude Code subscription usage, similar to [
 - [x] [**Shell prompt**](docs/FEATURES.md#1-shell-prompt-integration---prompt) - Compact output for PS1/starship/oh-my-zsh
 - [x] [**Tmux integration**](docs/FEATURES.md#4-tmux-integration---tmux) - Status bar with session % and reset time
 - [x] [**Watch mode**](docs/FEATURES.md#2-watch-mode---watch) - Live updating display
-- [ ] [**Notifications**](docs/FEATURES.md#3-desktop-notifications---notify) - Desktop alerts at usage thresholds
-- [ ] [**Hook generator**](docs/FEATURES.md#5-hook-generator---generate-hook) - Claude Code pre-session warnings
-- [ ] [**Forecast**](docs/FEATURES.md#6-enhanced-forecast---forecast) - Predict when limits will be hit
+- [x] [**Notifications**](docs/FEATURES.md#3-desktop-notifications---notify) - Desktop alerts at usage thresholds
+- [x] [**Hook generator**](docs/FEATURES.md#5-hook-generator---generate-hook) - Claude Code pre-session warnings
+- [x] [**Forecast**](docs/FEATURES.md#6-enhanced-forecast---forecast) - Predict when limits will be hit
+- [x] [**CSV export**](docs/FEATURES.md#8-csv-export---export) - Export history for external tools
 - [ ] [**HTML reports**](docs/FEATURES.md#7-html-report---report) - Weekly/monthly usage reports
-- [ ] [**CSV export**](docs/FEATURES.md#8-csv-export---export) - Export history for external tools
 
 See [docs/FEATURES.md](docs/FEATURES.md) for detailed specifications.
 
@@ -112,6 +112,10 @@ Resets Mon 6:59 PM
 | `claude-watch --tmux` | Output for tmux status bar |
 | `claude-watch --watch` | Live updating display (30s interval) |
 | `claude-watch -w 60` | Live display with 60s interval |
+| `claude-watch --forecast` | Show usage projections |
+| `claude-watch --notify` | Send desktop notification |
+| `claude-watch --export csv` | Export history to CSV |
+| `claude-watch --install-hook` | Install Claude Code hook |
 | `claude-watch --no-color` | Disable colors (for piping) |
 | `claude-watch --no-record` | Don't save to history |
 | `ccw` | Short alias (configure in shell) |
@@ -209,6 +213,40 @@ claude-watch --tmux 2>/dev/null || echo "#[fg=yellow]?#[default]"
 set -g status-right '#(~/.local/bin/tmux-claude-usage)'
 ```
 
+### Claude Code Hook Integration
+
+Automatically check usage before each Claude Code operation with a pre-tool hook:
+
+```bash
+# Generate hook script (prints to stdout)
+claude-watch --generate-hook > ~/.claude/hooks/usage-hook.sh
+chmod +x ~/.claude/hooks/usage-hook.sh
+
+# Or install automatically
+claude-watch --install-hook
+```
+
+The `--install-hook` command:
+1. Creates `~/.claude/hooks/claude-watch-hook.sh`
+2. Adds hook to `~/.claude/settings.json` (PreToolUse)
+
+**Configuration** (environment variables):
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CLAUDE_USAGE_THRESHOLD` | Warning threshold % | 85 |
+| `CLAUDE_WATCH_SILENT` | Suppress non-critical output | 0 |
+| `CLAUDE_WATCH_BLOCKING` | Block operations at 95%+ | 0 |
+
+**Example** - Stricter limits:
+
+```bash
+export CLAUDE_USAGE_THRESHOLD=75
+export CLAUDE_WATCH_BLOCKING=1  # Prevent operations at 95%+
+```
+
+**To uninstall**, remove the hook entry from `~/.claude/settings.json`.
+
 ### Environment Variables
 
 | Variable | Description |
@@ -216,6 +254,9 @@ set -g status-right '#(~/.local/bin/tmux-claude-usage)'
 | `CLAUDE_WATCH_NO_COLOR` | Disable colors when set to any non-empty value |
 | `CLAUDE_WATCH_CACHE_TTL` | Cache TTL in seconds (default: 60) |
 | `CLAUDE_WATCH_HISTORY_DAYS` | History retention in days (default: 180) |
+| `CLAUDE_USAGE_THRESHOLD` | Hook warning threshold (default: 85) |
+| `CLAUDE_WATCH_SILENT` | Hook: suppress non-blocking output |
+| `CLAUDE_WATCH_BLOCKING` | Hook: block at 95%+ usage |
 
 ## Setup Wizard
 
