@@ -9,5 +9,6 @@ Modules:
 """
 
 from claude_watch.display.colors import Colors, init_colors, supports_color
+from claude_watch.display.spinner import Spinner
 
-__all__ = ["Colors", "supports_color", "init_colors"]
+__all__ = ["Colors", "supports_color", "init_colors", "Spinner"]
