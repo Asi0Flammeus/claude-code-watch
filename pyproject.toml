@@ -1,6 +1,6 @@
 [project]
 name = "claude-watch"
-version = "0.1.0"
+dynamic = ["version"]
 description = "CLI tool to monitor Claude Code subscription usage limits"
 readme = "README.md"
 license = {text = "MIT"}
@@ -35,6 +35,8 @@ dev = [
 ]
 
 [project.scripts]
+# Primary: use standalone claude_watch.py (no src/ dependency)
+# When full migration is complete, change to: claude_watch.cli:main
 claude-watch = "claude_watch:main"
 ccw = "claude_watch:main"
 
@@ -47,11 +49,26 @@ Issues = "https://github.com/Asi0Flammeus/claude-code-watch/issues"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# Dynamic version from _version.py
+[tool.hatch.version]
+path = "src/claude_watch/_version.py"
+
+# Source layout configuration
 [tool.hatch.build.targets.wheel]
-only-include = ["claude_watch.py", "completions"]
+packages = ["src/claude_watch"]
+# Also include standalone script during transition
+artifacts = ["claude_watch.py", "completions"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["claude_watch.py", "completions", "README.md", "LICENSE", "pyproject.toml"]
+include = [
+    "src/claude_watch",
+    "claude_watch.py",
+    "completions",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+    "tests",
+]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Testing Configuration
@@ -72,8 +89,8 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["."]
-omit = ["tests/*", "setup.py"]
+source = ["src/claude_watch", "claude_watch.py"]
+omit = ["tests/*", "setup.py", "*/__pycache__/*"]
 
 [tool.coverage.report]
 exclude_lines = [
