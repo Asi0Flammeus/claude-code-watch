@@ -3,7 +3,7 @@
 Modules:
     wizard: Interactive setup wizard
     completion: Shell completion installation
-    systemd: Systemd timer configuration (TODO)
+    systemd: Systemd timer configuration
 """
 
 from claude_watch.setup.completion import (
@@ -11,6 +11,14 @@ from claude_watch.setup.completion import (
     detect_shell,
     get_completion_source_path,
     setup_shell_completion,
+)
+from claude_watch.setup.systemd import (
+    SERVICE_NAME,
+    SYSTEMD_USER_DIR,
+    check_timer_status,
+    disable_systemd_timer,
+    get_script_path,
+    setup_systemd_timer,
 )
 from claude_watch.setup.wizard import (
     SUBSCRIPTION_PLAN_DETAILS,
@@ -30,4 +38,11 @@ __all__ = [
     "get_completion_source_path",
     "setup_shell_completion",
     "SHELL_CONFIGS",
+    # Systemd
+    "SYSTEMD_USER_DIR",
+    "SERVICE_NAME",
+    "get_script_path",
+    "setup_systemd_timer",
+    "disable_systemd_timer",
+    "check_timer_status",
 ]
