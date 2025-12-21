@@ -31,7 +31,7 @@ import shutil
 # Version
 # ═══════════════════════════════════════════════════════════════════════════════
 
-__version__ = "0.4.1"
+__version__ = "0.5.1"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Configuration
@@ -2986,6 +2986,264 @@ def display_forecast_json(data: dict, history: list, config: dict):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Desktop Notifications
+# ═══════════════════════════════════════════════════════════════════════════════
+
+NOTIFY_STATE_FILE = Path.home() / ".claude" / ".notify_state.json"
+
+
+def load_notify_state() -> dict:
+    """Load notification state from file."""
+    if not NOTIFY_STATE_FILE.exists():
+        return {"last_thresholds": [], "last_notified_at": None}
+    try:
+        with open(NOTIFY_STATE_FILE) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {"last_thresholds": [], "last_notified_at": None}
+
+
+def save_notify_state(state: dict):
+    """Save notification state to file."""
+    NOTIFY_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(NOTIFY_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def send_notification_linux(title: str, message: str, urgency: str = "normal") -> bool:
+    """Send notification on Linux using notify-send.
+
+    Args:
+        title: Notification title.
+        message: Notification body.
+        urgency: Notification urgency (low, normal, critical).
+
+    Returns:
+        True if notification was sent successfully.
+    """
+    try:
+        subprocess.run(
+            ["notify-send", "-u", urgency, "-a", "claude-watch", title, message],
+            check=True,
+            capture_output=True,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def send_notification_macos(title: str, message: str, urgency: str = "normal") -> bool:
+    """Send notification on macOS using osascript.
+
+    Args:
+        title: Notification title.
+        message: Notification body.
+        urgency: Notification urgency (unused on macOS).
+
+    Returns:
+        True if notification was sent successfully.
+    """
+    # Escape quotes for AppleScript
+    title_escaped = title.replace('"', '\\"')
+    message_escaped = message.replace('"', '\\"')
+
+    script = f'display notification "{message_escaped}" with title "{title_escaped}"'
+    try:
+        subprocess.run(
+            ["osascript", "-e", script],
+            check=True,
+            capture_output=True,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def send_notification_windows(title: str, message: str, urgency: str = "normal") -> bool:
+    """Send notification on Windows using PowerShell toast.
+
+    Args:
+        title: Notification title.
+        message: Notification body.
+        urgency: Notification urgency (unused on Windows).
+
+    Returns:
+        True if notification was sent successfully.
+    """
+    # PowerShell toast notification
+    script = f'''
+    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+    [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+
+    $template = @"
+    <toast>
+        <visual>
+            <binding template="ToastText02">
+                <text id="1">{title}</text>
+                <text id="2">{message}</text>
+            </binding>
+        </visual>
+    </toast>
+"@
+
+    $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $xml.LoadXml($template)
+    $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+    [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("claude-watch").Show($toast)
+    '''
+    try:
+        subprocess.run(
+            ["powershell", "-Command", script],
+            check=True,
+            capture_output=True,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def send_notification(title: str, message: str, urgency: str = "normal") -> bool:
+    """Send a desktop notification using the appropriate method for the platform.
+
+    Args:
+        title: Notification title.
+        message: Notification body.
+        urgency: Notification urgency (low, normal, critical).
+
+    Returns:
+        True if notification was sent successfully.
+    """
+    system = platform.system()
+    if system == "Linux":
+        return send_notification_linux(title, message, urgency)
+    elif system == "Darwin":
+        return send_notification_macos(title, message, urgency)
+    elif system == "Windows":
+        return send_notification_windows(title, message, urgency)
+    else:
+        return False
+
+
+def check_and_notify(data: dict, thresholds: List[int], verbose: bool = False) -> int:
+    """Check usage against thresholds and send notifications if needed.
+
+    Args:
+        data: Current usage data.
+        thresholds: List of threshold percentages to check.
+        verbose: Whether to print verbose output.
+
+    Returns:
+        Exit code (0 = ok, 1 = warning sent, 2 = critical sent).
+    """
+    five_hour = data.get("five_hour", {}).get("utilization", 0)
+    seven_day = data.get("seven_day", {}).get("utilization", 0)
+
+    # Use max of session and weekly for threshold comparison
+    current_usage = max(five_hour, seven_day)
+
+    # Load state
+    state = load_notify_state()
+    last_thresholds = set(state.get("last_thresholds", []))
+
+    # Sort thresholds descending to check highest first
+    thresholds_sorted = sorted(thresholds, reverse=True)
+
+    # Find exceeded thresholds
+    exceeded = [t for t in thresholds_sorted if current_usage >= t]
+
+    # Check if we should reset state (usage dropped below 50%)
+    # Only reset if we previously had thresholds AND the lowest threshold is >= 50
+    min_threshold = min(thresholds) if thresholds else 80
+    reset_threshold = min(50, min_threshold)
+    if current_usage < reset_threshold:
+        if last_thresholds:
+            if verbose:
+                print(f"{Colors.GREEN}Usage dropped below {reset_threshold}%, resetting notification state{Colors.RESET}")
+            state["last_thresholds"] = []
+            save_notify_state(state)
+        if not exceeded:
+            if verbose:
+                print(f"{Colors.GREEN}Usage at {current_usage:.0f}% (below all thresholds){Colors.RESET}")
+            return 0
+
+    # Find new thresholds that haven't been notified
+    new_exceeded = [t for t in exceeded if t not in last_thresholds]
+
+    if not new_exceeded:
+        if verbose:
+            if exceeded:
+                print(f"{Colors.DIM}Usage at {current_usage:.0f}% (already notified for {exceeded[0]}%){Colors.RESET}")
+            else:
+                print(f"{Colors.GREEN}Usage at {current_usage:.0f}% (below all thresholds){Colors.RESET}")
+        return 0
+
+    # Send notification for highest new threshold
+    highest_new = max(new_exceeded)
+
+    # Determine urgency
+    if highest_new >= 95:
+        urgency = "critical"
+        severity_text = "CRITICAL"
+    elif highest_new >= 90:
+        urgency = "critical"
+        severity_text = "HIGH"
+    else:
+        urgency = "normal"
+        severity_text = "WARNING"
+
+    title = f"Claude Usage {severity_text}: {current_usage:.0f}%"
+    message = f"Session: {five_hour:.0f}% | Weekly: {seven_day:.0f}%"
+
+    if verbose:
+        print(f"{Colors.YELLOW}Sending notification: {title}{Colors.RESET}")
+
+    success = send_notification(title, message, urgency)
+
+    if success:
+        # Update state with all exceeded thresholds
+        state["last_thresholds"] = exceeded
+        state["last_notified_at"] = datetime.now(timezone.utc).isoformat()
+        save_notify_state(state)
+
+        if verbose:
+            print(f"{Colors.GREEN}Notification sent successfully{Colors.RESET}")
+
+        return 2 if urgency == "critical" else 1
+    else:
+        if verbose:
+            print(f"{Colors.RED}Failed to send notification (notify-send not available?){Colors.RESET}")
+        return 0
+
+
+def run_notify_daemon(thresholds: List[int], interval: int = 300):
+    """Run notification daemon in the background.
+
+    Args:
+        thresholds: List of threshold percentages to check.
+        interval: Check interval in seconds (default: 300 = 5 minutes).
+    """
+    print(f"{Colors.CYAN}Starting notification daemon...{Colors.RESET}")
+    print(f"  Thresholds: {', '.join(str(t) + '%' for t in sorted(thresholds))}")
+    print(f"  Interval: {interval}s")
+    print(f"  Press Ctrl+C to stop")
+    print()
+
+    try:
+        while True:
+            try:
+                data = fetch_usage_cached(cache_ttl=0, silent=True)
+                if data:
+                    check_and_notify(data, thresholds, verbose=True)
+            except Exception as e:
+                print(f"{Colors.RED}Error checking usage: {e}{Colors.RESET}", file=sys.stderr)
+
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print()
+        print(f"{Colors.CYAN}Notification daemon stopped{Colors.RESET}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Main Entry Point
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -3020,6 +3278,9 @@ Examples:
   claude-watch --export csv --excel -o data.csv  Export CSV with Excel BOM
   claude-watch --forecast   Show usage projections and recommendations
   claude-watch -f --json    Output forecast as JSON
+  claude-watch --notify     Send desktop notification if usage exceeds thresholds
+  claude-watch --notify --notify-at 70,85,95  Custom thresholds
+  claude-watch --notify-daemon  Run as background notification service
   ccw                       Short alias (add to shell config)
 
 Setup:
@@ -3131,6 +3392,22 @@ Setup:
         action="store_true",
         help="Show usage forecast with projections and recommendations.",
     )
+    parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="Show desktop notification if usage exceeds thresholds.",
+    )
+    parser.add_argument(
+        "--notify-at",
+        metavar="THRESHOLDS",
+        default="80,90,95",
+        help="Comma-separated thresholds for notifications (default: 80,90,95).",
+    )
+    parser.add_argument(
+        "--notify-daemon",
+        action="store_true",
+        help="Run as background daemon checking usage periodically.",
+    )
 
     args = parser.parse_args()
 
@@ -3199,6 +3476,30 @@ Setup:
     # Handle --export mode
     if args.export:
         exit_code = run_export(args.export, args.days, args.output, args.excel)
+        sys.exit(exit_code)
+
+    # Handle --notify-daemon mode
+    if args.notify_daemon:
+        thresholds = [int(t.strip()) for t in args.notify_at.split(",")]
+        run_notify_daemon(thresholds)
+        return
+
+    # Handle --notify mode
+    if args.notify:
+        # Parse thresholds
+        try:
+            thresholds = [int(t.strip()) for t in args.notify_at.split(",")]
+        except ValueError:
+            print(f"{Colors.RED}Error: Invalid threshold format. Use comma-separated numbers (e.g., 80,90,95){Colors.RESET}")
+            sys.exit(1)
+
+        # Fetch data
+        data = fetch_usage_cached(cache_ttl=0, silent=True)
+        if data is None:
+            print(f"{Colors.RED}Error: Failed to fetch usage data{Colors.RESET}")
+            sys.exit(3)
+
+        exit_code = check_and_notify(data, thresholds, verbose=args.verbose)
         sys.exit(exit_code)
 
     # Handle setup and config commands
