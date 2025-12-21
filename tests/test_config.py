@@ -5,14 +5,21 @@ Tests for configuration management functions.
 import json
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Import functions from main script
-exec(open(Path(__file__).parent.parent / "claude_watch.py", encoding="utf-8").read())
+import claude_watch.config.settings as settings_module
+from claude_watch.config.settings import (
+    CONFIG_FILE,
+    CONFIG_VERSION,
+    DEFAULT_CONFIG,
+    load_config,
+    migrate_config,
+    save_config,
+    validate_config,
+)
+from claude_watch.setup.wizard import prompt_input, prompt_yes_no
 
 
 class TestLoadConfig:
@@ -20,30 +27,25 @@ class TestLoadConfig:
 
     def test_returns_default_when_no_file(self, tmp_path):
         """Test returns default config when file doesn't exist."""
-        # Point CONFIG_FILE to a nonexistent path
         nonexistent = tmp_path / "nonexistent.json"
-        globals()["CONFIG_FILE"] = nonexistent
 
-        result = load_config()
+        result = load_config(config_file=nonexistent)
         assert result == DEFAULT_CONFIG
 
     def test_loads_existing_config(self, tmp_path):
         """Test loading existing config file."""
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps({"subscription_plan": "max_5x", "setup_completed": True}))
-        globals()["CONFIG_FILE"] = config_file
 
-        result = load_config()
+        result = load_config(config_file=config_file, silent=True)
         assert result["subscription_plan"] == "max_5x"
 
     def test_merges_with_defaults(self, tmp_path):
         """Test that loaded config is merged with defaults."""
-        # Create partial config
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps({"subscription_plan": "max_5x"}))
-        globals()["CONFIG_FILE"] = config_file
 
-        result = load_config()
+        result = load_config(config_file=config_file, silent=True)
         # Should have the custom value
         assert result["subscription_plan"] == "max_5x"
         # Should have default values for missing keys
@@ -58,18 +60,16 @@ class TestSaveConfig:
     def test_creates_parent_directory(self, tmp_path):
         """Test that parent directory is created."""
         config_file = tmp_path / "subdir" / "config.json"
-        globals()["CONFIG_FILE"] = config_file
 
-        save_config({"test": "value"})
+        save_config({"test": "value"}, config_file=config_file)
 
         assert config_file.exists()
 
     def test_saves_json(self, tmp_path):
         """Test that config is saved as valid JSON."""
         config_file = tmp_path / "config.json"
-        globals()["CONFIG_FILE"] = config_file
 
-        save_config({"subscription_plan": "pro", "auto_collect": True})
+        save_config({"subscription_plan": "pro", "auto_collect": True}, config_file=config_file)
 
         # Read and parse
         loaded = json.loads(config_file.read_text())
@@ -82,9 +82,8 @@ class TestSaveConfig:
     def test_sets_file_permissions(self, tmp_path):
         """Test that config file has secure permissions."""
         config_file = tmp_path / "config.json"
-        globals()["CONFIG_FILE"] = config_file
 
-        save_config({"admin_api_key": "secret"})
+        save_config({"admin_api_key": "secret"}, config_file=config_file)
 
         # Check file permissions (0o600 = owner read/write only)
         mode = config_file.stat().st_mode
@@ -250,9 +249,8 @@ class TestLoadConfigValidation:
         """Test that load_config validates and warns on errors."""
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps({"unknown_key": "value"}))
-        globals()["CONFIG_FILE"] = config_file
 
-        load_config()
+        load_config(config_file=config_file)
 
         captured = capsys.readouterr()
         assert "Warning: Config validation errors" in captured.err
@@ -262,9 +260,8 @@ class TestLoadConfigValidation:
         """Test that validation can be disabled."""
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps({"unknown_key": "value"}))
-        globals()["CONFIG_FILE"] = config_file
 
-        load_config(validate=False, auto_migrate=False)
+        load_config(config_file=config_file, validate=False, auto_migrate=False)
 
         captured = capsys.readouterr()
         assert captured.err == ""
@@ -344,9 +341,8 @@ class TestMigrateConfig:
             "subscription_plan": "pro",
         }
         config_file.write_text(json.dumps(v1_config))
-        globals()["CONFIG_FILE"] = config_file
 
-        result = load_config()
+        result = load_config(config_file=config_file)
 
         # Check migration message printed
         captured = capsys.readouterr()
@@ -364,9 +360,8 @@ class TestMigrateConfig:
         config_file = tmp_path / "config.json"
         v1_config = {"subscription_plan": "pro"}
         config_file.write_text(json.dumps(v1_config))
-        globals()["CONFIG_FILE"] = config_file
 
-        load_config(auto_migrate=False, validate=False)
+        load_config(config_file=config_file, auto_migrate=False, validate=False)
 
         # No migration message
         captured = capsys.readouterr()

@@ -2,14 +2,13 @@
 Tests for display formatting functions.
 """
 
-import sys
-from pathlib import Path
-
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Import functions from main script
-exec(open(Path(__file__).parent.parent / "claude_watch.py", encoding="utf-8").read())
+from claude_watch.display.analytics import format_trend, make_sparkline
+from claude_watch.display.colors import Colors
+from claude_watch.display.progress import (
+    format_percentage,
+    get_usage_color,
+    make_progress_bar,
+)
 
 
 class TestProgressBar:

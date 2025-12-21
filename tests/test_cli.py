@@ -5,21 +5,24 @@ These are integration tests that verify CLI behavior end-to-end.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+from claude_watch.api.cache import CACHE_MAX_AGE
+from claude_watch.api.client import API_URL, get_mock_usage_data
+from claude_watch.cli import create_parser
+from claude_watch.config.settings import load_config
+from claude_watch.display.analytics import SUBSCRIPTION_PLANS
+from claude_watch.display.colors import Colors, supports_color
+from claude_watch.history.storage import MAX_HISTORY_DAYS, load_history
 
 # Path to the main script
+PROJECT_ROOT = Path(__file__).parent.parent
 SCRIPT_PATH = PROJECT_ROOT / "claude_watch.py"
-
-# Import functions from main script (like other test files do)
-exec(open(SCRIPT_PATH, encoding="utf-8").read())
 
 
 class TestCLIHelp:
@@ -71,61 +74,38 @@ class TestCLIArgumentParsing:
 
     def test_json_short_flag(self):
         """Test -j is equivalent to --json."""
-        import argparse
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--json", "-j", action="store_true")
-
+        parser = create_parser()
         args = parser.parse_args(["-j"])
         assert args.json is True
 
     def test_analytics_short_flag(self):
         """Test -a is equivalent to --analytics."""
-        import argparse
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--analytics", "-a", action="store_true")
-
+        parser = create_parser()
         args = parser.parse_args(["-a"])
         assert args.analytics is True
 
     def test_setup_short_flag(self):
         """Test -s is equivalent to --setup."""
-        import argparse
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--setup", "-s", action="store_true")
-
+        parser = create_parser()
         args = parser.parse_args(["-s"])
         assert args.setup is True
 
     def test_config_short_flag(self):
         """Test -c is equivalent to --config."""
-        import argparse
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--config", "-c", action="store_true")
-
+        parser = create_parser()
         args = parser.parse_args(["-c"])
-        assert args.config is True
+        # config with no args gives empty list (not True/False)
+        assert args.config == []
 
     def test_cache_ttl_accepts_integer(self):
         """Test --cache-ttl accepts integer values."""
-        import argparse
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--cache-ttl", type=int)
-
+        parser = create_parser()
         args = parser.parse_args(["--cache-ttl", "120"])
         assert args.cache_ttl == 120
 
     def test_cache_ttl_rejects_non_integer(self):
         """Test --cache-ttl rejects non-integer values."""
-        import argparse
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--cache-ttl", type=int)
-
+        parser = create_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["--cache-ttl", "abc"])
 
@@ -165,15 +145,11 @@ class TestCLIColors:
 
     def test_no_color_env_var_disables_colors(self, monkeypatch):
         """Test CLAUDE_WATCH_NO_COLOR env var disables colors."""
-        # Set the env var
         monkeypatch.setenv("CLAUDE_WATCH_NO_COLOR", "1")
-
-        # supports_color should return False when env var is set
         assert supports_color() is False
 
     def test_no_color_env_var_any_value_disables(self, monkeypatch):
         """Test CLAUDE_WATCH_NO_COLOR works with any non-empty value."""
-        # Test with different values
         for value in ["1", "true", "yes", "anything"]:
             monkeypatch.setenv("CLAUDE_WATCH_NO_COLOR", value)
             assert supports_color() is False
@@ -182,7 +158,6 @@ class TestCLIColors:
         """Test empty CLAUDE_WATCH_NO_COLOR doesn't disable colors."""
         monkeypatch.setenv("CLAUDE_WATCH_NO_COLOR", "")
         # Empty string should not disable colors (depends on TTY)
-        # Just verify it doesn't raise an error
         supports_color()  # Should not raise
 
 
@@ -191,64 +166,56 @@ class TestCLIEnvironmentVariables:
 
     def test_cache_ttl_env_var_override(self):
         """Test CLAUDE_WATCH_CACHE_TTL env var overrides default."""
-        import os
-
         env = os.environ.copy()
         env["CLAUDE_WATCH_CACHE_TTL"] = "120"
         result = subprocess.run(
-            [sys.executable, "-c", "import claude_watch; print(claude_watch.CACHE_MAX_AGE)"],
+            [sys.executable, "-c", "from claude_watch.api.cache import CACHE_MAX_AGE; print(CACHE_MAX_AGE)"],
             capture_output=True,
             text=True,
             env=env,
-            cwd=PROJECT_ROOT,
+            cwd=PROJECT_ROOT / "src",
         )
         assert result.returncode == 0
         assert result.stdout.strip() == "120"
 
     def test_cache_ttl_env_var_invalid_uses_default(self):
         """Test invalid CLAUDE_WATCH_CACHE_TTL falls back to default."""
-        import os
-
         env = os.environ.copy()
         env["CLAUDE_WATCH_CACHE_TTL"] = "invalid"
         result = subprocess.run(
-            [sys.executable, "-c", "import claude_watch; print(claude_watch.CACHE_MAX_AGE)"],
+            [sys.executable, "-c", "from claude_watch.api.cache import CACHE_MAX_AGE; print(CACHE_MAX_AGE)"],
             capture_output=True,
             text=True,
             env=env,
-            cwd=PROJECT_ROOT,
+            cwd=PROJECT_ROOT / "src",
         )
         assert result.returncode == 0
         assert result.stdout.strip() == "60"  # Default value
 
     def test_history_days_env_var_override(self):
         """Test CLAUDE_WATCH_HISTORY_DAYS env var overrides default."""
-        import os
-
         env = os.environ.copy()
         env["CLAUDE_WATCH_HISTORY_DAYS"] = "90"
         result = subprocess.run(
-            [sys.executable, "-c", "import claude_watch; print(claude_watch.MAX_HISTORY_DAYS)"],
+            [sys.executable, "-c", "from claude_watch.history.storage import MAX_HISTORY_DAYS; print(MAX_HISTORY_DAYS)"],
             capture_output=True,
             text=True,
             env=env,
-            cwd=PROJECT_ROOT,
+            cwd=PROJECT_ROOT / "src",
         )
         assert result.returncode == 0
         assert result.stdout.strip() == "90"
 
     def test_history_days_env_var_invalid_uses_default(self):
         """Test invalid CLAUDE_WATCH_HISTORY_DAYS falls back to default."""
-        import os
-
         env = os.environ.copy()
         env["CLAUDE_WATCH_HISTORY_DAYS"] = "not-a-number"
         result = subprocess.run(
-            [sys.executable, "-c", "import claude_watch; print(claude_watch.MAX_HISTORY_DAYS)"],
+            [sys.executable, "-c", "from claude_watch.history.storage import MAX_HISTORY_DAYS; print(MAX_HISTORY_DAYS)"],
             capture_output=True,
             text=True,
             env=env,
-            cwd=PROJECT_ROOT,
+            cwd=PROJECT_ROOT / "src",
         )
         assert result.returncode == 0
         assert result.stdout.strip() == "180"  # Default value
@@ -259,15 +226,12 @@ class TestCLIConfig:
 
     def test_config_command_loads_config(self, tmp_path):
         """Test --config loads and displays configuration."""
-        # Set up temp config
         config_file = tmp_path / "config.json"
         config_file.write_text(
             json.dumps({"subscription_plan": "max_5x", "setup_completed": True})
         )
-        globals()["CONFIG_FILE"] = config_file
 
-        # Load config using the function
-        config = load_config()
+        config = load_config(config_file=config_file, silent=True)
         assert config["subscription_plan"] == "max_5x"
         assert config["setup_completed"] is True
 
@@ -275,9 +239,8 @@ class TestCLIConfig:
         """Test config defaults are applied."""
         config_file = tmp_path / "config.json"
         config_file.write_text("{}")
-        globals()["CONFIG_FILE"] = config_file
 
-        config = load_config()
+        config = load_config(config_file=config_file, silent=True, auto_migrate=False, validate=False)
         # Should have default values merged
         assert "subscription_plan" in config
         assert "auto_collect" in config
@@ -288,23 +251,31 @@ class TestCLIHistory:
 
     def test_load_empty_history(self, tmp_path):
         """Test loading empty history."""
+        from unittest.mock import patch
+        import claude_watch.history.storage as storage_module
+
         history_file = tmp_path / "history.json"
         history_file.write_text("[]")
-        globals()["HISTORY_FILE"] = history_file
 
-        history = load_history()
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            history = load_history()
+
         assert history == []
 
     def test_load_history_with_data(self, tmp_path):
         """Test loading history with data."""
+        from unittest.mock import patch
+        import claude_watch.history.storage as storage_module
+
         history_file = tmp_path / "history.json"
         test_data = [
             {"timestamp": "2024-12-19T10:00:00Z", "five_hour": 25.0, "seven_day": 10.0}
         ]
         history_file.write_text(json.dumps(test_data))
-        globals()["HISTORY_FILE"] = history_file
 
-        history = load_history()
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            history = load_history()
+
         assert len(history) == 1
         assert history[0]["five_hour"] == 25.0
 
@@ -432,7 +403,6 @@ class TestCLIDryRun:
 
     def test_dry_run_no_api_calls(self):
         """Test --dry-run does not require credentials (uses mock data)."""
-        # Run with dry-run - should work even without valid credentials
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--dry-run"],
             capture_output=True,

@@ -2,17 +2,16 @@
 Tests for analytics calculation functions.
 """
 
-import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Import functions from main script
-exec(open(Path(__file__).parent.parent / "claude_watch.py", encoding="utf-8").read())
+from claude_watch.display.analytics import (
+    SUBSCRIPTION_PLANS,
+    calculate_token_cost,
+    get_daily_peaks,
+    get_period_stats,
+)
 
 
 class TestGetPeriodStats:

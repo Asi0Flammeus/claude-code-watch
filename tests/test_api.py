@@ -8,29 +8,19 @@ Tests cover:
 - Error handling (auth, network, parsing)
 """
 
-import importlib.util
 import json
-import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 
 import pytest
 
-# Import from the executable script
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# We need to import the module dynamically since it's an executable without .py extension
-spec = importlib.util.spec_from_loader(
-    "claude_watch",
-    loader=None,
-    origin=str(Path(__file__).parent.parent / "claude_watch.py"),
-)
-claude_watch = importlib.util.module_from_spec(spec)
-
-# Execute the module to load its contents
-with open(Path(__file__).parent.parent / "claude_watch.py", encoding="utf-8") as f:
-    exec(f.read(), claude_watch.__dict__)
+import claude_watch.config.credentials as credentials_module
+import claude_watch.history.storage as storage_module
+from claude_watch.api.client import fetch_usage
+from claude_watch.config.credentials import get_access_token, get_credentials
+from claude_watch.history.storage import load_history, record_usage, save_history
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -48,9 +38,9 @@ class TestFetchUsage:
         mock_response.__enter__ = MagicMock(return_value=mock_response)
         mock_response.__exit__ = MagicMock(return_value=False)
 
-        with patch.object(claude_watch, "get_access_token", return_value="test-token"):
-            with patch.object(claude_watch, "urlopen", return_value=mock_response):
-                result = claude_watch.fetch_usage()
+        with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
+            with patch("claude_watch.api.client.urlopen", return_value=mock_response):
+                result = fetch_usage()
 
         assert result["five_hour"]["utilization"] == 34.5
         assert result["seven_day"]["utilization"] == 12.3
@@ -65,10 +55,10 @@ class TestFetchUsage:
             fp=None,
         )
 
-        with patch.object(claude_watch, "get_access_token", return_value="test-token"):
-            with patch.object(claude_watch, "urlopen", side_effect=http_error):
+        with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
+            with patch("claude_watch.api.client.urlopen", side_effect=http_error):
                 with pytest.raises(RuntimeError) as exc_info:
-                    claude_watch.fetch_usage()
+                    fetch_usage()
 
         assert "Authentication failed" in str(exc_info.value)
         assert "session may have expired" in str(exc_info.value)
@@ -83,10 +73,10 @@ class TestFetchUsage:
             fp=None,
         )
 
-        with patch.object(claude_watch, "get_access_token", return_value="test-token"):
-            with patch.object(claude_watch, "urlopen", side_effect=http_error):
+        with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
+            with patch("claude_watch.api.client.urlopen", side_effect=http_error):
                 with pytest.raises(RuntimeError) as exc_info:
-                    claude_watch.fetch_usage()
+                    fetch_usage()
 
         assert "API error: 500" in str(exc_info.value)
 
@@ -94,10 +84,10 @@ class TestFetchUsage:
         """Test network error handling."""
         url_error = URLError("Connection refused")
 
-        with patch.object(claude_watch, "get_access_token", return_value="test-token"):
-            with patch.object(claude_watch, "urlopen", side_effect=url_error):
+        with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
+            with patch("claude_watch.api.client.urlopen", side_effect=url_error):
                 with pytest.raises(RuntimeError) as exc_info:
-                    claude_watch.fetch_usage()
+                    fetch_usage()
 
         assert "Network error" in str(exc_info.value)
 
@@ -105,10 +95,10 @@ class TestFetchUsage:
         """Test request timeout handling."""
         url_error = URLError("timed out")
 
-        with patch.object(claude_watch, "get_access_token", return_value="test-token"):
-            with patch.object(claude_watch, "urlopen", side_effect=url_error):
+        with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
+            with patch("claude_watch.api.client.urlopen", side_effect=url_error):
                 with pytest.raises(RuntimeError) as exc_info:
-                    claude_watch.fetch_usage()
+                    fetch_usage()
 
         assert "Network error" in str(exc_info.value)
         assert "timed out" in str(exc_info.value)
@@ -127,9 +117,9 @@ class TestFetchUsage:
             captured_request = req
             return mock_response
 
-        with patch.object(claude_watch, "get_access_token", return_value="test-token"):
-            with patch.object(claude_watch, "urlopen", side_effect=capture_request):
-                claude_watch.fetch_usage()
+        with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
+            with patch("claude_watch.api.client.urlopen", side_effect=capture_request):
+                fetch_usage()
 
         assert captured_request is not None
         assert "Bearer test-token" in captured_request.get_header("Authorization")
@@ -150,9 +140,9 @@ class TestGetCredentials:
         creds_file = tmp_path / ".credentials.json"
         creds_file.write_text(json.dumps(credentials_valid))
 
-        with patch.object(claude_watch, "get_credentials_path", return_value=creds_file):
-            with patch.object(claude_watch.platform, "system", return_value="Linux"):
-                result = claude_watch.get_credentials()
+        with patch.object(credentials_module, "get_credentials_path", return_value=creds_file):
+            with patch.object(credentials_module.platform, "system", return_value="Linux"):
+                result = get_credentials()
 
         assert result["claudeAiOauth"]["accessToken"] == "test-access-token-12345"
 
@@ -160,10 +150,10 @@ class TestGetCredentials:
         """Test error when credentials file doesn't exist."""
         non_existent = tmp_path / "nonexistent" / ".credentials.json"
 
-        with patch.object(claude_watch, "get_credentials_path", return_value=non_existent):
-            with patch.object(claude_watch.platform, "system", return_value="Linux"):
+        with patch.object(credentials_module, "get_credentials_path", return_value=non_existent):
+            with patch.object(credentials_module.platform, "system", return_value="Linux"):
                 with pytest.raises(FileNotFoundError) as exc_info:
-                    claude_watch.get_credentials()
+                    get_credentials()
 
         assert "Credentials not found" in str(exc_info.value)
         assert "Claude Code is installed" in str(exc_info.value)
@@ -174,22 +164,22 @@ class TestGetCredentials:
         creds_file.write_text(json.dumps(credentials_valid))
 
         # Simulate keychain returning None (not found)
-        with patch.object(claude_watch.platform, "system", return_value="Darwin"):
-            with patch.object(claude_watch, "get_macos_keychain_credentials", return_value=None):
-                with patch.object(claude_watch, "get_credentials_path", return_value=creds_file):
-                    result = claude_watch.get_credentials()
+        with patch.object(credentials_module.platform, "system", return_value="Darwin"):
+            with patch.object(credentials_module, "get_macos_keychain_credentials", return_value=None):
+                with patch.object(credentials_module, "get_credentials_path", return_value=creds_file):
+                    result = get_credentials()
 
         assert result["claudeAiOauth"]["accessToken"] == "test-access-token-12345"
 
     def test_macos_keychain_success(self, credentials_valid):
         """Test macOS keychain returns credentials successfully."""
-        with patch.object(claude_watch.platform, "system", return_value="Darwin"):
+        with patch.object(credentials_module.platform, "system", return_value="Darwin"):
             with patch.object(
-                claude_watch,
+                credentials_module,
                 "get_macos_keychain_credentials",
                 return_value=credentials_valid,
             ):
-                result = claude_watch.get_credentials()
+                result = get_credentials()
 
         assert result["claudeAiOauth"]["accessToken"] == "test-access-token-12345"
 
@@ -204,16 +194,16 @@ class TestGetAccessToken:
 
     def test_extract_token(self, credentials_valid):
         """Test extracting access token from credentials."""
-        with patch.object(claude_watch, "get_credentials", return_value=credentials_valid):
-            token = claude_watch.get_access_token()
+        with patch.object(credentials_module, "get_credentials", return_value=credentials_valid):
+            token = get_access_token()
 
         assert token == "test-access-token-12345"
 
     def test_missing_token(self, credentials_missing_token):
         """Test error when access token is missing."""
-        with patch.object(claude_watch, "get_credentials", return_value=credentials_missing_token):
+        with patch.object(credentials_module, "get_credentials", return_value=credentials_missing_token):
             with pytest.raises(ValueError) as exc_info:
-                claude_watch.get_access_token()
+                get_access_token()
 
         assert "No access token found" in str(exc_info.value)
 
@@ -221,17 +211,17 @@ class TestGetAccessToken:
         """Test error when claudeAiOauth section is missing."""
         creds_no_oauth = {"someOtherKey": "value"}
 
-        with patch.object(claude_watch, "get_credentials", return_value=creds_no_oauth):
+        with patch.object(credentials_module, "get_credentials", return_value=creds_no_oauth):
             with pytest.raises(ValueError) as exc_info:
-                claude_watch.get_access_token()
+                get_access_token()
 
         assert "No access token found" in str(exc_info.value)
 
     def test_empty_credentials(self):
         """Test error when credentials are empty."""
-        with patch.object(claude_watch, "get_credentials", return_value={}):
+        with patch.object(credentials_module, "get_credentials", return_value={}):
             with pytest.raises(ValueError) as exc_info:
-                claude_watch.get_access_token()
+                get_access_token()
 
         assert "No access token found" in str(exc_info.value)
 
@@ -248,8 +238,8 @@ class TestHistoryManagement:
         """Test loading when history file doesn't exist."""
         history_file = tmp_path / ".usage_history.json"
 
-        with patch.object(claude_watch, "HISTORY_FILE", history_file):
-            result = claude_watch.load_history()
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            result = load_history()
 
         assert result == []
 
@@ -258,8 +248,8 @@ class TestHistoryManagement:
         history_file = tmp_path / ".usage_history.json"
         history_file.write_text(json.dumps(history_sample))
 
-        with patch.object(claude_watch, "HISTORY_FILE", history_file):
-            result = claude_watch.load_history()
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            result = load_history()
 
         assert len(result) == 5
         assert result[0]["five_hour"] == 25.0
@@ -269,14 +259,13 @@ class TestHistoryManagement:
         history_file = tmp_path / ".usage_history.json"
         history_file.write_text("not valid json {{{")
 
-        with patch.object(claude_watch, "HISTORY_FILE", history_file):
-            result = claude_watch.load_history()
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            result = load_history()
 
         assert result == []
 
     def test_save_history(self, tmp_path):
         """Test saving history to file."""
-        from datetime import datetime, timedelta, timezone
 
         history_file = tmp_path / ".usage_history.json"
 
@@ -291,8 +280,8 @@ class TestHistoryManagement:
                 }
             )
 
-        with patch.object(claude_watch, "HISTORY_FILE", history_file):
-            claude_watch.save_history(recent_history)
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            save_history(recent_history)
 
         assert history_file.exists()
         saved = json.loads(history_file.read_text())
@@ -300,7 +289,6 @@ class TestHistoryManagement:
 
     def test_save_history_prunes_old(self, tmp_path):
         """Test that save_history prunes entries older than MAX_HISTORY_DAYS."""
-        from datetime import datetime, timedelta, timezone
 
         history_file = tmp_path / ".usage_history.json"
 
@@ -316,9 +304,9 @@ class TestHistoryManagement:
             "seven_day": 10.0,
         }
 
-        with patch.object(claude_watch, "HISTORY_FILE", history_file):
-            with patch.object(claude_watch, "MAX_HISTORY_DAYS", 30):
-                claude_watch.save_history([old_entry, new_entry])
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            with patch.object(storage_module, "MAX_HISTORY_DAYS", 30):
+                save_history([old_entry, new_entry])
 
         saved = json.loads(history_file.read_text())
         assert len(saved) == 1  # Old entry should be pruned
@@ -328,8 +316,8 @@ class TestHistoryManagement:
         """Test that save_history creates parent directories."""
         history_file = tmp_path / "subdir" / "nested" / ".usage_history.json"
 
-        with patch.object(claude_watch, "HISTORY_FILE", history_file):
-            claude_watch.save_history([{"timestamp": "2024-12-19T00:00:00Z"}])
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            save_history([{"timestamp": "2024-12-19T00:00:00Z"}])
 
         assert history_file.exists()
 
@@ -347,8 +335,8 @@ class TestRecordUsage:
         history_file = tmp_path / ".usage_history.json"
         history_file.write_text("[]")
 
-        with patch.object(claude_watch, "HISTORY_FILE", history_file):
-            claude_watch.record_usage(usage_normal)
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            record_usage(usage_normal)
 
         saved = json.loads(history_file.read_text())
         assert len(saved) == 1
@@ -366,8 +354,8 @@ class TestRecordUsage:
             "seven_day": {"utilization": 5.0},
         }
 
-        with patch.object(claude_watch, "HISTORY_FILE", history_file):
-            claude_watch.record_usage(minimal_data)
+        with patch.object(storage_module, "HISTORY_FILE", history_file):
+            record_usage(minimal_data)
 
         saved = json.loads(history_file.read_text())
         assert len(saved) == 1

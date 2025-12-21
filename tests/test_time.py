@@ -2,15 +2,13 @@
 Tests for time parsing and formatting functions.
 """
 
-import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Import functions from main script
-exec(open(Path(__file__).parent.parent / "claude_watch.py", encoding="utf-8").read())
+from claude_watch.utils.time import (
+    format_absolute_time,
+    format_relative_time,
+    parse_reset_time,
+)
 
 
 class TestParseResetTime:

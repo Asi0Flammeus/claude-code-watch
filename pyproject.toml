@@ -76,12 +76,16 @@ include = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+# Use importlib mode to avoid claude_watch.py shadowing src/claude_watch/ package
+# This is essential because pytest adds project root to sys.path by default
 addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
+    "--import-mode=importlib",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -125,8 +129,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Test files use exec() to load functions dynamically, causing false positives
-"tests/test_*.py" = ["F821", "F401"]
+# Test files may have unused imports from conftest fixtures
+"tests/test_*.py" = ["F401"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["claude_watch"]

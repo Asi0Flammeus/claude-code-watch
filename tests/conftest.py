@@ -1,18 +1,24 @@
 """
 Pytest fixtures for claude-watch tests.
+
+Test imports use the src/claude_watch/ package via --import-mode=importlib (see pyproject.toml).
+The standalone claude_watch.py script is tested separately via subprocess.
 """
 
 import json
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-# Add project root to path for imports
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Path Constants
+# ═══════════════════════════════════════════════════════════════════════════════
+
 PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+SRC_DIR = PROJECT_ROOT / "src"
 
 # Load fixtures data
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -126,28 +132,28 @@ def config_max():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Mock Fixtures
+# Mock Fixtures (updated for new module structure)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
 @pytest.fixture
 def mock_fetch_usage(usage_normal):
     """Mock fetch_usage to return normal usage data."""
-    with patch("claude_watch.fetch_usage", return_value=usage_normal) as mock:
+    with patch("claude_watch.api.client.fetch_usage", return_value=usage_normal) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_credentials(credentials_valid):
     """Mock get_credentials to return valid credentials."""
-    with patch("claude_watch.get_credentials", return_value=credentials_valid) as mock:
+    with patch("claude_watch.config.credentials.get_credentials", return_value=credentials_valid) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_urlopen():
     """Mock urlopen for API testing."""
-    with patch("claude_watch.urlopen") as mock:
+    with patch("claude_watch.api.client.urlopen") as mock:
         yield mock
 
 
@@ -194,7 +200,7 @@ def fixed_now():
 @pytest.fixture
 def mock_now(fixed_now):
     """Mock datetime.now to return fixed time."""
-    with patch("claude_watch.datetime") as mock_dt:
+    with patch("claude_watch.utils.time.datetime") as mock_dt:
         mock_dt.now.return_value = fixed_now
         mock_dt.fromisoformat = datetime.fromisoformat
         mock_dt.strptime = datetime.strptime
