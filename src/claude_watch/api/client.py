@@ -23,6 +23,14 @@ from claude_watch.api.retry import (
 )
 from claude_watch.config.audit import is_audit_enabled, log_api_request, log_credential_access
 from claude_watch.config.credentials import get_access_token
+from claude_watch.errors import (
+    AuthenticationExpiredError,
+    AuthenticationInvalidError,
+    NetworkOfflineError,
+    PermissionDeniedError,
+    categorize_http_error,
+    categorize_network_error,
+)
 
 # API endpoints
 API_URL = "https://api.anthropic.com/api/oauth/usage"
@@ -101,10 +109,9 @@ def fetch_usage(
                         status_code=401,
                         error="Authentication failed",
                     )
-                # Don't retry auth failures
-                raise RuntimeError(
-                    "Authentication failed. Your session may have expired.\n"
-                    "Please re-authenticate with Claude Code."
+                # Don't retry auth failures - use categorized error
+                raise AuthenticationExpiredError(
+                    "Authentication failed. Your session may have expired."
                 ) from None
             if not is_retryable_error(e):
                 # Audit log non-retryable error
@@ -116,7 +123,7 @@ def fetch_usage(
                         status_code=e.code,
                         error=str(e.reason),
                     )
-                raise RuntimeError(f"API error: {e.code} {e.reason}") from e
+                raise categorize_http_error(e.code, str(e.reason)) from e
             retry_count += 1
             raise  # Let retry handler catch retryable errors
         except URLError as e:
@@ -129,7 +136,7 @@ def fetch_usage(
                         success=False,
                         error=str(e.reason),
                     )
-                raise RuntimeError(f"Network error: {e.reason}") from e
+                raise categorize_network_error(str(e.reason)) from e
             retry_count += 1
             raise  # Let retry handler catch retryable errors
 
@@ -149,10 +156,10 @@ def fetch_usage(
                 error=str(e),
                 retry_count=retry_count,
             )
-        # Convert any remaining errors to RuntimeError
+        # Convert to categorized error
         if isinstance(e, HTTPError):
-            raise RuntimeError(f"API error: {e.code} {e.reason}") from e
-        raise RuntimeError(f"Network error: {e.reason}") from e
+            raise categorize_http_error(e.code, str(e.reason)) from e
+        raise categorize_network_error(str(e.reason)) from e
 
 
 def fetch_usage_cached(
@@ -198,7 +205,7 @@ def fetch_usage_cached(
                         stale["_offline"] = True
                         return stale
                     return None
-                raise RuntimeError(f"Offline: {offline_reason}")
+                raise NetworkOfflineError(f"Offline: {offline_reason}")
 
         # Cache miss or stale, fetch fresh data
         data = fetch_usage(
@@ -261,15 +268,19 @@ def fetch_admin_usage(
                 return json.loads(response.read().decode())
         except HTTPError as e:
             if e.code == 401:
-                raise RuntimeError("Admin API authentication failed. Check your API key.") from None
+                raise AuthenticationInvalidError(
+                    "Admin API authentication failed. Check your API key."
+                ) from None
             if e.code == 403:
-                raise RuntimeError("Admin API access denied. Ensure you have admin role.") from None
+                raise PermissionDeniedError(
+                    "Admin API access denied. Ensure you have admin role."
+                ) from None
             if not is_retryable_error(e):
-                raise RuntimeError(f"Admin API error: {e.code} {e.reason}") from e
+                raise categorize_http_error(e.code, str(e.reason)) from e
             raise
         except URLError as e:
             if not is_retryable_error(e):
-                raise RuntimeError(f"Network error: {e.reason}") from e
+                raise categorize_network_error(str(e.reason)) from e
             raise
 
     while True:
@@ -307,8 +318,8 @@ def fetch_admin_usage(
                 break
         except (HTTPError, URLError) as e:
             if isinstance(e, HTTPError):
-                raise RuntimeError(f"Admin API error: {e.code} {e.reason}") from e
-            raise RuntimeError(f"Network error: {e.reason}") from e
+                raise categorize_http_error(e.code, str(e.reason)) from e
+            raise categorize_network_error(str(e.reason)) from e
 
     return all_data
 

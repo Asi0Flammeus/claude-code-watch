@@ -10,6 +10,7 @@ import sys
 
 from claude_watch._version import __version__
 from claude_watch.display.colors import Colors
+from claude_watch.errors import ClaudeWatchError, format_error_for_user, get_exit_code
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -657,8 +658,11 @@ def main() -> None:
             )
         except Exception as e:
             if not args.quiet:
-                print(f"{Colors.RED}Error fetching usage data: {e}{Colors.RESET}")
-            sys.exit(1)
+                error_msg = format_error_for_user(e, verbose=args.verbose)
+                print(f"{Colors.RED}{error_msg}{Colors.RESET}")
+                if isinstance(e, ClaudeWatchError) and e.get_suggestion():
+                    print(f"{Colors.YELLOW}Suggestion: {e.get_suggestion()}{Colors.RESET}")
+            sys.exit(get_exit_code(e))
 
         if not args.no_record and data:
             record_usage(data)
@@ -706,9 +710,12 @@ def main() -> None:
         )
     except Exception as e:
         if not args.quiet:
-            print(f"{Colors.RED}Error fetching usage data: {e}{Colors.RESET}")
-        sys.exit(1)
-    elapsed = time.time() - start_time
+            error_msg = format_error_for_user(e, verbose=args.verbose)
+            print(f"{Colors.RED}{error_msg}{Colors.RESET}")
+            if isinstance(e, ClaudeWatchError) and e.get_suggestion():
+                print(f"{Colors.YELLOW}Suggestion: {e.get_suggestion()}{Colors.RESET}")
+        sys.exit(get_exit_code(e))
+    _ = time.time() - start_time  # Track elapsed time for verbose mode
 
     # Record to history (unless --no-record)
     if not args.no_record and data:
