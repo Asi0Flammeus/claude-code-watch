@@ -1,7 +1,9 @@
-"""Export history data to CSV and JSON formats."""
+"""Export history data to CSV, JSON, and InfluxDB formats."""
 
 import json
 import sys
+import urllib.request
+import urllib.error
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -95,6 +97,104 @@ def export_json(history: list, days: Optional[int] = None) -> str:
     return json.dumps(filtered, indent=2)
 
 
+def export_influx(history: list, days: Optional[int] = None) -> str:
+    """Export history to InfluxDB line protocol format.
+
+    Args:
+        history: List of history entries.
+        days: Filter to last N days (None for all).
+
+    Returns:
+        InfluxDB line protocol formatted string.
+    """
+    filtered = filter_history_by_days(history, days)
+    filtered.sort(key=lambda x: x.get("timestamp", ""))
+
+    lines = []
+
+    for entry in filtered:
+        ts = entry.get("timestamp", "")
+        if not ts:
+            continue
+
+        # Parse timestamp and convert to nanoseconds
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            ns = int(dt.timestamp() * 1_000_000_000)
+        except (ValueError, TypeError):
+            continue
+
+        # Build field set
+        fields = []
+        if entry.get("five_hour") is not None:
+            fields.append(f"session_pct={entry['five_hour']}")
+        if entry.get("seven_day") is not None:
+            fields.append(f"weekly_pct={entry['seven_day']}")
+        if entry.get("seven_day_sonnet") is not None:
+            fields.append(f"sonnet_pct={entry['seven_day_sonnet']}")
+        if entry.get("seven_day_opus") is not None:
+            fields.append(f"opus_pct={entry['seven_day_opus']}")
+
+        if fields:
+            line = f"claude_usage {','.join(fields)} {ns}"
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
+def push_to_influxdb(
+    url: str,
+    data: str,
+    token: Optional[str] = None,
+    org: Optional[str] = None,
+    bucket: Optional[str] = None,
+    timeout: int = 10,
+) -> bool:
+    """Push data to InfluxDB v2 API.
+
+    Args:
+        url: InfluxDB base URL (e.g., http://localhost:8086).
+        data: InfluxDB line protocol data.
+        token: InfluxDB API token.
+        org: InfluxDB organization.
+        bucket: InfluxDB bucket.
+        timeout: Request timeout in seconds.
+
+    Returns:
+        True if push was successful.
+
+    Raises:
+        Exception: If the request fails.
+    """
+    # Build write URL
+    write_url = f"{url.rstrip('/')}/api/v2/write"
+    if org:
+        write_url += f"?org={org}"
+        if bucket:
+            write_url += f"&bucket={bucket}"
+
+    headers = {
+        "Content-Type": "text/plain; charset=utf-8",
+    }
+    if token:
+        headers["Authorization"] = f"Token {token}"
+
+    req = urllib.request.Request(
+        write_url,
+        data=data.encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.status in (200, 204)
+    except urllib.error.HTTPError as e:
+        raise Exception(f"InfluxDB error: {e.code} {e.reason}") from e
+    except urllib.error.URLError as e:
+        raise Exception(f"Connection error: {e.reason}") from e
+
+
 def run_export(
     format_type: str,
     days: Optional[int],
@@ -123,6 +223,8 @@ def run_export(
 
     if format_type == "csv":
         output = export_csv(history, days, excel_bom)
+    elif format_type == "influx":
+        output = export_influx(history, days)
     else:
         output = export_json(history, days)
 

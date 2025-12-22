@@ -43,6 +43,7 @@ Examples:
   claude-watch --watch      Live updating display
   claude-watch --report weekly  Generate weekly HTML report
   claude-watch --report monthly --open  Generate and open monthly report
+  claude-watch --metrics-server 9100  Start Prometheus metrics server
   claude-watch --update     Check for and install updates
   claude-watch --audit      Enable audit logging for operations
   claude-watch --show-audit Show recent audit log entries
@@ -151,9 +152,9 @@ Setup:
     # Export arguments
     parser.add_argument(
         "--export",
-        choices=["csv", "json"],
+        choices=["csv", "json", "influx"],
         metavar="FORMAT",
-        help="Export history data. FORMAT: csv or json.",
+        help="Export history data. FORMAT: csv, json, or influx (InfluxDB line protocol).",
     )
     parser.add_argument(
         "--days",
@@ -172,6 +173,26 @@ Setup:
         "--excel",
         action="store_true",
         help="Add UTF-8 BOM for Excel compatibility (CSV only).",
+    )
+    parser.add_argument(
+        "--influxdb-url",
+        metavar="URL",
+        help="Push data directly to InfluxDB (e.g., http://localhost:8086).",
+    )
+    parser.add_argument(
+        "--influxdb-token",
+        metavar="TOKEN",
+        help="InfluxDB API token for authentication.",
+    )
+    parser.add_argument(
+        "--influxdb-org",
+        metavar="ORG",
+        help="InfluxDB organization name.",
+    )
+    parser.add_argument(
+        "--influxdb-bucket",
+        metavar="BUCKET",
+        help="InfluxDB bucket name.",
     )
 
     # Forecast arguments
@@ -236,6 +257,21 @@ Setup:
         "--open",
         action="store_true",
         help="Open generated report in default browser.",
+    )
+
+    # Metrics arguments
+    parser.add_argument(
+        "--metrics-server",
+        type=int,
+        metavar="PORT",
+        help="Start Prometheus metrics server on specified port.",
+    )
+    parser.add_argument(
+        "--metrics-interval",
+        type=int,
+        default=60,
+        metavar="SECONDS",
+        help="Metrics fetch interval in seconds (default: 60).",
     )
 
     # Network arguments
@@ -702,6 +738,40 @@ def main() -> None:
             print()
         return
 
+    # Handle --influxdb-url flag (push to InfluxDB)
+    if args.influxdb_url:
+        from claude_watch.export.exporter import export_influx, push_to_influxdb
+        from claude_watch.history.storage import load_history as load_history_func
+
+        history = load_history_func()
+        if not history:
+            print(f"{Colors.YELLOW}No history data to push{Colors.RESET}")
+            sys.exit(0)
+
+        influx_data = export_influx(history, args.days)
+        if not influx_data:
+            print(f"{Colors.YELLOW}No data to push after filtering{Colors.RESET}")
+            sys.exit(0)
+
+        if not args.quiet:
+            print(f"Pushing {len(history)} records to InfluxDB...")
+
+        try:
+            push_to_influxdb(
+                url=args.influxdb_url,
+                data=influx_data,
+                token=args.influxdb_token,
+                org=args.influxdb_org,
+                bucket=args.influxdb_bucket,
+                timeout=args.timeout,
+            )
+            if not args.quiet:
+                print(f"{Colors.GREEN}Successfully pushed to InfluxDB{Colors.RESET}")
+            sys.exit(0)
+        except Exception as e:
+            print(f"{Colors.RED}InfluxDB push failed: {e}{Colors.RESET}")
+            sys.exit(1)
+
     # Handle --export flag
     if args.export:
         from claude_watch.export import run_export
@@ -726,6 +796,21 @@ def main() -> None:
             return fetch_usage_cached(cache_ttl=0, silent=True)
 
         run_notify_daemon(thresholds, fetch_func=fetch_for_notify)
+        return
+
+    # Handle --metrics-server flag
+    if args.metrics_server:
+        from claude_watch.metrics import run_metrics_server
+
+        def fetch_for_metrics():
+            return fetch_usage_cached(cache_ttl=0, silent=True)
+
+        run_metrics_server(
+            port=args.metrics_server,
+            fetch_func=fetch_for_metrics,
+            fetch_interval=args.metrics_interval,
+            verbose=not args.quiet,
+        )
         return
 
     # Fetch usage data
