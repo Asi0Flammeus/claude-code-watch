@@ -222,6 +222,20 @@ Setup:
         help="Open generated report in default browser.",
     )
 
+    # Network arguments
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=10,
+        metavar="SECONDS",
+        help="Request timeout in seconds (default: 10).",
+    )
+    parser.add_argument(
+        "--proxy",
+        metavar="URL",
+        help="Proxy URL (overrides HTTP_PROXY/HTTPS_PROXY env vars).",
+    )
+
     return parser
 
 
@@ -522,7 +536,11 @@ def main() -> None:
         from claude_watch.display.watch import display_current_compact
 
         try:
-            data = fetch_usage_cached(cache_ttl=args.cache_ttl if args.cache_ttl else CACHE_MAX_AGE)
+            data = fetch_usage_cached(
+                cache_ttl=args.cache_ttl if args.cache_ttl else CACHE_MAX_AGE,
+                timeout=args.timeout,
+                proxy=args.proxy,
+            )
         except Exception as e:
             if not args.quiet:
                 print(f"{Colors.RED}Error fetching usage data: {e}{Colors.RESET}")
@@ -567,7 +585,11 @@ def main() -> None:
     start_time = time.time()
     try:
         cache_ttl = args.cache_ttl if args.cache_ttl else CACHE_MAX_AGE
-        data = fetch_usage_cached(cache_ttl=cache_ttl)
+        data = fetch_usage_cached(
+            cache_ttl=cache_ttl,
+            timeout=args.timeout,
+            proxy=args.proxy,
+        )
     except Exception as e:
         if not args.quiet:
             print(f"{Colors.RED}Error fetching usage data: {e}{Colors.RESET}")

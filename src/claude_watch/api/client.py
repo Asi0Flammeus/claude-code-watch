@@ -3,14 +3,24 @@
 Provides functions for fetching usage data from OAuth and Admin APIs.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from claude_watch._version import __version__
 from claude_watch.api.cache import get_stale_cache, load_cache, save_cache
+from claude_watch.api.retry import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_TIMEOUT,
+    check_network_connectivity,
+    is_retryable_error,
+    retry_request,
+    setup_proxy_handler,
+)
 from claude_watch.config.credentials import get_access_token
 
 # API endpoints
@@ -19,8 +29,19 @@ ADMIN_API_URL = "https://api.anthropic.com/v1/organizations/usage_report/message
 API_BETA_HEADER = "oauth-2025-04-20"
 
 
-def fetch_usage() -> dict:
-    """Fetch current usage from OAuth API.
+def fetch_usage(
+    timeout: int = DEFAULT_TIMEOUT,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    proxy: str | None = None,
+    on_retry: Callable[[int, Exception, float], None] | None = None,
+) -> dict:
+    """Fetch current usage from OAuth API with retry support.
+
+    Args:
+        timeout: Request timeout in seconds.
+        max_retries: Maximum number of retry attempts.
+        proxy: Optional proxy URL (overrides environment variables).
+        on_retry: Optional callback for retry events.
 
     Returns:
         Usage data dictionary with 'five_hour', 'seven_day', etc. keys.
@@ -28,6 +49,13 @@ def fetch_usage() -> dict:
     Raises:
         RuntimeError: If authentication fails or network error occurs.
     """
+    # Setup proxy if specified
+    if proxy:
+        setup_proxy_handler(proxy)
+    else:
+        # Use environment variables
+        setup_proxy_handler()
+
     token = get_access_token()
 
     req = Request(
@@ -40,47 +68,89 @@ def fetch_usage() -> dict:
         },
     )
 
+    def make_request() -> dict:
+        try:
+            with urlopen(req, timeout=timeout) as response:
+                return json.loads(response.read().decode())
+        except HTTPError as e:
+            if e.code == 401:
+                # Don't retry auth failures
+                raise RuntimeError(
+                    "Authentication failed. Your session may have expired.\n"
+                    "Please re-authenticate with Claude Code."
+                ) from None
+            if not is_retryable_error(e):
+                raise RuntimeError(f"API error: {e.code} {e.reason}") from e
+            raise  # Let retry handler catch retryable errors
+        except URLError as e:
+            if not is_retryable_error(e):
+                raise RuntimeError(f"Network error: {e.reason}") from e
+            raise  # Let retry handler catch retryable errors
+
     try:
-        with urlopen(req, timeout=10) as response:
-            return json.loads(response.read().decode())
-    except HTTPError as e:
-        if e.code == 401:
-            raise RuntimeError(
-                "Authentication failed. Your session may have expired.\n"
-                "Please re-authenticate with Claude Code."
-            ) from None
-        raise RuntimeError(f"API error: {e.code} {e.reason}") from e
-    except URLError as e:
+        return retry_request(
+            make_request,
+            max_retries=max_retries,
+            on_retry=on_retry,
+        )
+    except (HTTPError, URLError) as e:
+        # Convert any remaining errors to RuntimeError
+        if isinstance(e, HTTPError):
+            raise RuntimeError(f"API error: {e.code} {e.reason}") from e
         raise RuntimeError(f"Network error: {e.reason}") from e
 
 
 def fetch_usage_cached(
-    cache_ttl: Optional[int] = None,
+    cache_ttl: int | None = None,
     silent: bool = False,
-) -> Optional[dict]:
-    """Fetch usage with caching support.
+    timeout: int = DEFAULT_TIMEOUT,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    proxy: str | None = None,
+    check_offline: bool = True,
+) -> dict | None:
+    """Fetch usage with caching support, offline detection, and retry.
 
     Args:
         cache_ttl: Override default cache TTL in seconds.
         silent: If True, return None on error instead of raising.
             If cache exists, return stale cache on error.
+        timeout: Request timeout in seconds.
+        max_retries: Maximum number of retry attempts.
+        proxy: Optional proxy URL (overrides environment variables).
+        check_offline: If True, check network connectivity before fetch.
 
     Returns:
         Usage data dict, or None if silent mode and error occurred.
+        If returning stale cache, includes '_stale' key set to True.
 
     Raises:
         RuntimeError: If not in silent mode and API/network error occurs.
     """
-    # Note: cache_ttl parameter is now handled by the cache module's CACHE_MAX_AGE
-    # For custom TTL, the cache module needs to be configured beforehand
     try:
         # Try to load from cache first
         cached = load_cache()
         if cached is not None:
             return cached
 
+        # Check network connectivity before attempting fetch
+        if check_offline:
+            is_online, offline_reason = check_network_connectivity()
+            if not is_online:
+                if silent:
+                    stale = get_stale_cache()
+                    if stale is not None:
+                        stale["_stale"] = True
+                        stale["_offline"] = True
+                        return stale
+                    return None
+                raise RuntimeError(f"Offline: {offline_reason}")
+
         # Cache miss or stale, fetch fresh data
-        data = fetch_usage()
+        data = fetch_usage(
+            timeout=timeout,
+            max_retries=max_retries,
+            proxy=proxy,
+        )
         save_cache(data)
         return data
 
@@ -89,17 +159,27 @@ def fetch_usage_cached(
             # Try to return stale cache as fallback
             stale = get_stale_cache()
             if stale is not None:
+                stale["_stale"] = True
                 return stale
             return None
         raise
 
 
-def fetch_admin_usage(admin_key: str, days: int = 180) -> list:
-    """Fetch historical usage from Admin API with pagination.
+def fetch_admin_usage(
+    admin_key: str,
+    days: int = 180,
+    timeout: int = 30,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    proxy: str | None = None,
+) -> list:
+    """Fetch historical usage from Admin API with pagination and retry.
 
     Args:
         admin_key: Admin API key for authentication.
         days: Number of days of history to fetch (default 180 / 6 months).
+        timeout: Request timeout in seconds.
+        max_retries: Maximum number of retry attempts per page.
+        proxy: Optional proxy URL (overrides environment variables).
 
     Returns:
         List of usage bucket dictionaries.
@@ -107,11 +187,35 @@ def fetch_admin_usage(admin_key: str, days: int = 180) -> list:
     Raises:
         RuntimeError: If authentication fails, access denied, or network error.
     """
+    # Setup proxy
+    if proxy:
+        setup_proxy_handler(proxy)
+    else:
+        setup_proxy_handler()
+
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
 
-    all_data = []
-    next_page = None
+    all_data: list[dict] = []
+    next_page: str | None = None
+
+    def make_page_request(request: Request) -> dict:
+        """Make a single page request with error handling."""
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode())
+        except HTTPError as e:
+            if e.code == 401:
+                raise RuntimeError("Admin API authentication failed. Check your API key.") from None
+            if e.code == 403:
+                raise RuntimeError("Admin API access denied. Ensure you have admin role.") from None
+            if not is_retryable_error(e):
+                raise RuntimeError(f"Admin API error: {e.code} {e.reason}") from e
+            raise
+        except URLError as e:
+            if not is_retryable_error(e):
+                raise RuntimeError(f"Network error: {e.reason}") from e
+            raise
 
     while True:
         # Build URL with pagination
@@ -137,22 +241,18 @@ def fetch_admin_usage(admin_key: str, days: int = 180) -> list:
         )
 
         try:
-            with urlopen(req, timeout=30) as response:
-                data = json.loads(response.read().decode())
-                all_data.extend(data.get("data", []))
+            # Use lambda to capture current req value
+            data = retry_request(lambda r=req: make_page_request(r), max_retries=max_retries)
+            all_data.extend(data.get("data", []))
 
-                # Check for more pages
-                if data.get("has_more") and data.get("next_page"):
-                    next_page = data["next_page"]
-                else:
-                    break
-        except HTTPError as e:
-            if e.code == 401:
-                raise RuntimeError("Admin API authentication failed. Check your API key.") from None
-            if e.code == 403:
-                raise RuntimeError("Admin API access denied. Ensure you have admin role.") from None
-            raise RuntimeError(f"Admin API error: {e.code} {e.reason}") from e
-        except URLError as e:
+            # Check for more pages
+            if data.get("has_more") and data.get("next_page"):
+                next_page = data["next_page"]
+            else:
+                break
+        except (HTTPError, URLError) as e:
+            if isinstance(e, HTTPError):
+                raise RuntimeError(f"Admin API error: {e.code} {e.reason}") from e
             raise RuntimeError(f"Network error: {e.reason}") from e
 
     return all_data
