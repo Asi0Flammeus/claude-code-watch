@@ -45,6 +45,7 @@ Examples:
   claude-watch --update     Check for and install updates
   claude-watch --audit      Enable audit logging for operations
   claude-watch --show-audit Show recent audit log entries
+  claude-watch --health-check Run system diagnostics
   ccw                       Short alias (add to shell config)
 
 Setup:
@@ -257,6 +258,11 @@ Setup:
         metavar="N",
         help="Show last N audit log entries (default: 50).",
     )
+    parser.add_argument(
+        "--health-check",
+        action="store_true",
+        help="Run system health checks (credentials, API, config).",
+    )
 
     return parser
 
@@ -444,6 +450,16 @@ def main() -> None:
         print()
         print(f"{Colors.DIM}Log file: {log_path}{Colors.RESET}")
         sys.exit(0)
+
+    # Handle --health-check flag
+    if args.health_check:
+        from claude_watch.health import run_health_check
+
+        exit_code = run_health_check(
+            verbose=args.verbose,
+            timeout=args.timeout,
+        )
+        sys.exit(exit_code)
 
     # Handle --setup flag
     if args.setup:
