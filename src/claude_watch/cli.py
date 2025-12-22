@@ -36,6 +36,7 @@ Examples:
   claude-watch --export json -d 7  Export last 7 days as JSON
   claude-watch --notify     Send notification if usage high
   claude-watch --notify-daemon  Run notification daemon
+  claude-watch --webhook URL    Send webhook on threshold breach
   claude-watch --install-hook   Install Claude Code hook
   claude-watch --prompt     Output for shell prompt
   claude-watch --tmux       Output for tmux status bar
@@ -197,6 +198,18 @@ Setup:
         "--notify-daemon",
         action="store_true",
         help="Run as background daemon checking usage periodically.",
+    )
+
+    # Webhook arguments
+    parser.add_argument(
+        "--webhook",
+        metavar="URL",
+        help="Send webhook notification on threshold breach (Slack, Discord, or generic HTTP).",
+    )
+    parser.add_argument(
+        "--webhook-secret",
+        metavar="SECRET",
+        help="HMAC secret for signing webhook payloads (generic webhooks only).",
     )
 
     # Hook arguments
@@ -744,6 +757,50 @@ def main() -> None:
         thresholds = [int(t.strip()) for t in args.notify_at.split(",")]
         exit_code = check_and_notify(data, thresholds, verbose=not args.quiet)
         sys.exit(exit_code)
+
+    # Handle --webhook flag
+    if args.webhook:
+        from claude_watch.webhook import WebhookError, send_webhook
+
+        thresholds = [int(t.strip()) for t in args.notify_at.split(",")]
+        five_hour = data.get("five_hour", {}).get("utilization", 0)
+        seven_day = data.get("seven_day", {}).get("utilization", 0)
+        current_usage = max(five_hour, seven_day)
+
+        # Find highest breached threshold
+        breached = [t for t in sorted(thresholds, reverse=True) if current_usage >= t]
+
+        if not breached:
+            if not args.quiet:
+                print(
+                    f"{Colors.GREEN}Usage at {current_usage:.0f}% "
+                    f"(below all thresholds){Colors.RESET}"
+                )
+            sys.exit(0)
+
+        highest_threshold = breached[0]
+
+        if not args.quiet:
+            print(
+                f"{Colors.YELLOW}Threshold {highest_threshold}% breached "
+                f"(usage: {current_usage:.0f}%){Colors.RESET}"
+            )
+            print(f"Sending webhook to {args.webhook[:50]}...")
+
+        try:
+            send_webhook(
+                url=args.webhook,
+                data=data,
+                threshold=highest_threshold,
+                secret=args.webhook_secret,
+                timeout=args.timeout,
+            )
+            if not args.quiet:
+                print(f"{Colors.GREEN}Webhook sent successfully{Colors.RESET}")
+            sys.exit(0)
+        except WebhookError as e:
+            print(f"{Colors.RED}Webhook failed: {e}{Colors.RESET}")
+            sys.exit(1)
 
     # Handle --forecast flag
     if args.forecast:
