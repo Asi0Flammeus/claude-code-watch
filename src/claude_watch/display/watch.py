@@ -11,7 +11,9 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from claude_watch.display.colors import Colors
+from claude_watch.display.progress import format_percentage, make_progress_bar
 from claude_watch.display.usage import display_usage
+from claude_watch.utils.time import format_relative_time
 
 
 def clear_screen() -> None:
@@ -102,6 +104,54 @@ def format_delta(delta: Optional[float]) -> str:
         return f"{Colors.DIM}±0.0%{Colors.RESET}"
 
 
+def display_current_compact(data: dict, delta: Optional[float] = None) -> None:
+    """Display compact view with only current session info.
+
+    Args:
+        data: Usage data dict containing 'five_hour' key.
+        delta: Optional usage delta since watch start.
+    """
+    five_hour = data.get("five_hour") or {}
+    utilization = five_hour.get("utilization", 0)
+    resets_at = five_hour.get("resets_at", "")
+
+    bar = make_progress_bar(utilization, width=25)
+    pct = format_percentage(utilization)
+
+    reset_str = ""
+    if resets_at:
+        reset_str = f"Resets in {format_relative_time(resets_at)}"
+
+    # Delta display
+    delta_str = ""
+    if delta is not None:
+        delta_str = f" {format_delta(delta)}"
+
+    print(f"{Colors.WHITE}Current session{Colors.RESET}  {bar}  {pct}{delta_str}")
+    if reset_str:
+        print(f"{Colors.DIM}{reset_str}{Colors.RESET}")
+
+
+def print_watch_header_compact(
+    interval: int,
+    countdown: int,
+) -> None:
+    """Print compact watch header (single line).
+
+    Args:
+        interval: Refresh interval in seconds.
+        countdown: Seconds until next refresh.
+    """
+    now = datetime.now(timezone.utc).astimezone()
+    time_str = now.strftime("%H:%M:%S")
+
+    print(
+        f"{Colors.DIM}[{time_str}] "
+        f"Refresh: {format_countdown(countdown)} | "
+        f"Interval: {interval}s{Colors.RESET}"
+    )
+
+
 def print_watch_header(
     interval: int,
     countdown: int,
@@ -179,6 +229,7 @@ def run_watch_mode(
     analytics_mode: bool = False,
     history_func=None,
     config: Optional[dict] = None,
+    current_only: bool = False,
 ) -> None:
     """Run the watch mode loop.
 
@@ -189,6 +240,7 @@ def run_watch_mode(
         analytics_mode: If True, show analytics view.
         history_func: Optional function to load history (for analytics).
         config: Optional config dict (for analytics).
+        current_only: If True, show compact current-session-only view.
     """
     # Validate interval
     interval = max(10, min(300, interval))
@@ -223,15 +275,23 @@ def run_watch_mode(
             # Display
             for countdown in range(interval, -1, -1):
                 clear_screen()
-                print_watch_header(interval, countdown, session_duration + (interval - countdown), delta)
-                print()
 
-                if analytics_mode and history_func:
+                if current_only:
+                    # Compact mode: minimal header + current session only
+                    print_watch_header_compact(interval, countdown)
+                    display_current_compact(current_data, delta)
+                elif analytics_mode and history_func:
+                    # Full analytics mode
+                    print_watch_header(interval, countdown, session_duration + (interval - countdown), delta)
+                    print()
                     from claude_watch.display.analytics import display_analytics
                     display_func(current_data)
                     history = history_func()
                     display_analytics(current_data, history, config or {})
                 else:
+                    # Normal mode
+                    print_watch_header(interval, countdown, session_duration + (interval - countdown), delta)
+                    print()
                     display_func(current_data)
 
                 if countdown > 0:
@@ -249,6 +309,8 @@ __all__ = [
     "format_countdown",
     "calculate_delta",
     "format_delta",
+    "display_current_compact",
+    "print_watch_header_compact",
     "print_watch_header",
     "print_watch_summary",
     "run_watch_mode",

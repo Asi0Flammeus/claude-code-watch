@@ -16,13 +16,13 @@ def get_tmux_color(utilization: float) -> str:
         utilization: Usage percentage (0-100).
 
     Returns:
-        Tmux color name: 'green', 'yellow', or 'red'.
+        Tmux hex color code (Dracula theme compatible).
     """
     if utilization >= 90:
-        return "red"
+        return "#ff5555"  # Dracula red
     elif utilization >= 75:
-        return "yellow"
-    return "green"
+        return "#f1fa8c"  # Dracula yellow
+    return "#50fa7b"  # Dracula green
 
 
 def format_tmux(
