@@ -313,6 +313,13 @@ Setup:
         help="Run system health checks (credentials, API, config).",
     )
 
+    # Status line integration
+    parser.add_argument(
+        "--install-statusline",
+        action="store_true",
+        help="Install Claude Code status line integration.",
+    )
+
     return parser
 
 
@@ -509,6 +516,13 @@ def main() -> None:
             timeout=args.timeout,
         )
         sys.exit(exit_code)
+
+    # Handle --install-statusline flag
+    if args.install_statusline:
+        from claude_watch.integrations import install_statusline
+
+        success, message = install_statusline(verbose=not args.quiet)
+        sys.exit(0 if success else 1)
 
     # Handle --setup flag
     if args.setup:
