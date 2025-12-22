@@ -74,6 +74,17 @@ ExecStart={script_path} --no-color
 StandardOutput=null
 StandardError=journal
 
+# Security hardening
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
 [Install]
 WantedBy=default.target
 """

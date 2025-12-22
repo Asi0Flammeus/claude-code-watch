@@ -4,12 +4,18 @@ Provides functions for retrieving Claude Code OAuth credentials from
 platform-specific locations (macOS Keychain, Windows APPDATA, Linux home).
 """
 
+from __future__ import annotations
+
 import json
 import os
 import platform
 import subprocess
 from pathlib import Path
-from typing import Optional
+
+from claude_watch.config.security import (
+    mask_token,
+    validate_oauth_token,
+)
 
 
 def get_credentials_path() -> Path:
@@ -30,7 +36,7 @@ def get_credentials_path() -> Path:
     return base / ".claude" / ".credentials.json"
 
 
-def get_macos_keychain_credentials() -> Optional[dict]:
+def get_macos_keychain_credentials() -> dict | None:
     """Retrieve credentials from macOS Keychain.
 
     Returns:
@@ -80,22 +86,44 @@ def get_credentials() -> dict:
         return json.load(f)
 
 
-def get_access_token() -> str:
+def get_access_token(validate: bool = True) -> str:
     """Get the OAuth access token from credentials.
+
+    Args:
+        validate: If True, validate the token format.
 
     Returns:
         The access token string.
 
     Raises:
         FileNotFoundError: If credentials file doesn't exist.
-        ValueError: If no access token found in credentials.
+        ValueError: If no access token found or token format is invalid.
     """
     creds = get_credentials()
     oauth = creds.get("claudeAiOauth", {})
     token = oauth.get("accessToken")
     if not token:
         raise ValueError("No access token found in credentials")
+
+    if validate:
+        is_valid, error = validate_oauth_token(token)
+        if not is_valid:
+            raise ValueError(f"Invalid token format: {error}")
+
     return token
+
+
+def get_masked_token() -> str:
+    """Get a masked version of the access token for display.
+
+    Returns:
+        Masked token string, or error indicator if not available.
+    """
+    try:
+        token = get_access_token(validate=False)
+        return mask_token(token)
+    except (FileNotFoundError, ValueError):
+        return "<not configured>"
 
 
 __all__ = [
@@ -103,4 +131,5 @@ __all__ = [
     "get_macos_keychain_credentials",
     "get_credentials",
     "get_access_token",
+    "get_masked_token",
 ]
