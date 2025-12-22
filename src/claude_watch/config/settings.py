@@ -22,6 +22,9 @@ DEFAULT_CONFIG = {
     "setup_completed": False,
     "subscription_plan": "pro",  # pro, max_5x, max_20x
     "shell_completion_installed": False,
+    "webhook_url": None,
+    "webhook_secret": None,
+    "webhook_thresholds": "80,90,95",
 }
 
 # Subscription plans for validation
@@ -29,12 +32,13 @@ SUBSCRIPTION_PLANS = {"pro", "max_5x", "max_20x"}
 
 # Config version for migration tracking
 # Increment this when adding new config fields or changing schema
-CONFIG_VERSION = 2
+CONFIG_VERSION = 3
 
 # Migration history:
 # v1: Original config (admin_api_key, use_admin_api, auto_collect,
 #     collect_interval_hours, setup_completed, subscription_plan)
 # v2: Added shell_completion_installed
+# v3: Added webhook_url, webhook_secret, webhook_thresholds
 
 # Config schema for validation
 # Format: key -> (expected_types, required, validator_func or None)
@@ -65,6 +69,21 @@ CONFIG_SCHEMA: dict[str, tuple[tuple, bool, Optional[ValidatorFunc]]] = {
         else (False, f"must be one of: {', '.join(sorted(SUBSCRIPTION_PLANS))}"),
     ),
     "shell_completion_installed": ((bool,), False, None),
+    "webhook_url": (
+        (str, type(None)),
+        False,
+        lambda v: (True, "")
+        if v is None or (isinstance(v, str) and v.startswith("http"))
+        else (False, "must be a valid HTTP/HTTPS URL"),
+    ),
+    "webhook_secret": ((str, type(None)), False, None),
+    "webhook_thresholds": (
+        (str,),
+        False,
+        lambda v: (True, "")
+        if all(t.strip().isdigit() for t in v.split(","))
+        else (False, "must be comma-separated integers (e.g., '80,90,95')"),
+    ),
     "_config_version": ((int,), False, None),  # Internal version tracking for migrations
 }
 
@@ -137,6 +156,19 @@ def migrate_config(config: dict) -> Tuple[dict, bool]:
             migrated["shell_completion_installed"] = DEFAULT_CONFIG["shell_completion_installed"]
             was_migrated = True
         current_version = 2
+
+    # Migration from v2 to v3: Add webhook settings
+    if current_version < 3:
+        if "webhook_url" not in migrated:
+            migrated["webhook_url"] = DEFAULT_CONFIG["webhook_url"]
+            was_migrated = True
+        if "webhook_secret" not in migrated:
+            migrated["webhook_secret"] = DEFAULT_CONFIG["webhook_secret"]
+            was_migrated = True
+        if "webhook_thresholds" not in migrated:
+            migrated["webhook_thresholds"] = DEFAULT_CONFIG["webhook_thresholds"]
+            was_migrated = True
+        current_version = 3
 
     # Remove any deprecated keys (none currently, but ready for future)
     deprecated_keys: list[str] = []  # Add deprecated key names here in future

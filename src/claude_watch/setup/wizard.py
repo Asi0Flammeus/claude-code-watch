@@ -196,8 +196,56 @@ def run_setup(
 
     print()
 
-    # Step 4: Shell Completion
-    print(f"{Colors.BOLD}Step 4: Shell Tab Completion (Optional){Colors.RESET}")
+    # Step 4: Webhook Notifications
+    print(f"{Colors.BOLD}Step 4: Webhook Notifications (Optional){Colors.RESET}")
+    print()
+    print("Get notified when usage exceeds thresholds via:")
+    print(f"  {Colors.DIM}• Slack incoming webhooks{Colors.RESET}")
+    print(f"  {Colors.DIM}• Discord webhooks{Colors.RESET}")
+    print(f"  {Colors.DIM}• Generic HTTP endpoints{Colors.RESET}")
+    print()
+
+    setup_webhook = prompt_yes_no("Configure webhook notifications?", default=False)
+
+    if setup_webhook:
+        webhook_url = prompt_input("Webhook URL (Slack/Discord/HTTP):")
+        if webhook_url:
+            # Auto-detect type for display
+            from claude_watch.webhook import detect_webhook_type
+
+            webhook_type = detect_webhook_type(webhook_url)
+            type_display = {"slack": "Slack", "discord": "Discord", "generic": "HTTP"}
+
+            config["webhook_url"] = webhook_url
+            print(f"{Colors.GREEN}✓ {type_display[webhook_type]} webhook configured{Colors.RESET}")
+
+            # Only offer secret for generic webhooks
+            if webhook_type == "generic":
+                print()
+                print("For generic HTTP webhooks, you can add HMAC signing for security.")
+                add_secret = prompt_yes_no("Add webhook secret for HMAC signing?", default=False)
+                if add_secret:
+                    webhook_secret = prompt_input("Webhook secret:")
+                    if webhook_secret:
+                        config["webhook_secret"] = webhook_secret
+                        print(
+                            f"{Colors.GREEN}✓ Webhook secret saved (HMAC-SHA256 signing enabled){Colors.RESET}"
+                        )
+
+            # Configure thresholds
+            print()
+            thresholds = prompt_input("Notification thresholds (%)", default="80,90,95")
+            config["webhook_thresholds"] = thresholds
+            print(f"{Colors.GREEN}✓ Thresholds: {thresholds}{Colors.RESET}")
+        else:
+            print(f"{Colors.DIM}Skipping webhook setup.{Colors.RESET}")
+    else:
+        print(f"{Colors.DIM}Skipping webhook setup.{Colors.RESET}")
+
+    print()
+
+    # Step 5: Shell Completion
+    print(f"{Colors.BOLD}Step 5: Shell Tab Completion (Optional){Colors.RESET}")
     print()
 
     if detect_shell_func:
