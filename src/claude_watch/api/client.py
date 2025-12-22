@@ -21,6 +21,7 @@ from claude_watch.api.retry import (
     retry_request,
     setup_proxy_handler,
 )
+from claude_watch.config.audit import is_audit_enabled, log_api_request, log_credential_access
 from claude_watch.config.credentials import get_access_token
 
 # API endpoints
@@ -58,6 +59,10 @@ def fetch_usage(
 
     token = get_access_token()
 
+    # Audit log credential access
+    if is_audit_enabled():
+        log_credential_access("oauth", success=bool(token))
+
     req = Request(
         API_URL,
         headers={
@@ -68,23 +73,64 @@ def fetch_usage(
         },
     )
 
+    retry_count = 0
+
     def make_request() -> dict:
+        nonlocal retry_count
         try:
             with urlopen(req, timeout=timeout) as response:
-                return json.loads(response.read().decode())
+                result = json.loads(response.read().decode())
+                # Audit log successful request
+                if is_audit_enabled():
+                    log_api_request(
+                        endpoint="oauth/usage",
+                        method="GET",
+                        success=True,
+                        status_code=200,
+                        retry_count=retry_count,
+                    )
+                return result
         except HTTPError as e:
             if e.code == 401:
+                # Audit log auth failure
+                if is_audit_enabled():
+                    log_api_request(
+                        endpoint="oauth/usage",
+                        method="GET",
+                        success=False,
+                        status_code=401,
+                        error="Authentication failed",
+                    )
                 # Don't retry auth failures
                 raise RuntimeError(
                     "Authentication failed. Your session may have expired.\n"
                     "Please re-authenticate with Claude Code."
                 ) from None
             if not is_retryable_error(e):
+                # Audit log non-retryable error
+                if is_audit_enabled():
+                    log_api_request(
+                        endpoint="oauth/usage",
+                        method="GET",
+                        success=False,
+                        status_code=e.code,
+                        error=str(e.reason),
+                    )
                 raise RuntimeError(f"API error: {e.code} {e.reason}") from e
+            retry_count += 1
             raise  # Let retry handler catch retryable errors
         except URLError as e:
             if not is_retryable_error(e):
+                # Audit log network error
+                if is_audit_enabled():
+                    log_api_request(
+                        endpoint="oauth/usage",
+                        method="GET",
+                        success=False,
+                        error=str(e.reason),
+                    )
                 raise RuntimeError(f"Network error: {e.reason}") from e
+            retry_count += 1
             raise  # Let retry handler catch retryable errors
 
     try:
@@ -94,6 +140,15 @@ def fetch_usage(
             on_retry=on_retry,
         )
     except (HTTPError, URLError) as e:
+        # Audit log final failure
+        if is_audit_enabled():
+            log_api_request(
+                endpoint="oauth/usage",
+                method="GET",
+                success=False,
+                error=str(e),
+                retry_count=retry_count,
+            )
         # Convert any remaining errors to RuntimeError
         if isinstance(e, HTTPError):
             raise RuntimeError(f"API error: {e.code} {e.reason}") from e

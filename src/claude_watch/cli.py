@@ -7,7 +7,6 @@ claude-watch CLI tool.
 import argparse
 import platform
 import sys
-from typing import Optional
 
 from claude_watch._version import __version__
 from claude_watch.display.colors import Colors
@@ -43,6 +42,8 @@ Examples:
   claude-watch --report weekly  Generate weekly HTML report
   claude-watch --report monthly --open  Generate and open monthly report
   claude-watch --update     Check for and install updates
+  claude-watch --audit      Enable audit logging for operations
+  claude-watch --show-audit Show recent audit log entries
   ccw                       Short alias (add to shell config)
 
 Setup:
@@ -236,6 +237,26 @@ Setup:
         help="Proxy URL (overrides HTTP_PROXY/HTTPS_PROXY env vars).",
     )
 
+    # Security arguments
+    parser.add_argument(
+        "--audit",
+        action="store_true",
+        help="Enable audit logging for security-relevant operations.",
+    )
+    parser.add_argument(
+        "--audit-log",
+        metavar="PATH",
+        help="Custom path for audit log file (default: ~/.claude/audit/audit.log).",
+    )
+    parser.add_argument(
+        "--show-audit",
+        nargs="?",
+        const=50,
+        type=int,
+        metavar="N",
+        help="Show last N audit log entries (default: 50).",
+    )
+
     return parser
 
 
@@ -329,6 +350,99 @@ def main() -> None:
 
     # Load configuration
     config = load_config()
+
+    # Handle audit logging flags
+    if args.audit or args.audit_log:
+        from pathlib import Path
+
+        from claude_watch.config.audit import enable_audit_logging
+
+        log_path = Path(args.audit_log) if args.audit_log else None
+        enable_audit_logging(log_path)
+
+    # Handle --show-audit flag
+    if args.show_audit is not None:
+        from pathlib import Path
+
+        # Temporarily enable to read, even if --audit wasn't passed
+        from claude_watch.config.audit import (
+            AUDIT_LOG_FILE,
+        )
+
+        log_path = Path(args.audit_log) if args.audit_log else AUDIT_LOG_FILE
+
+        if not log_path.exists():
+            print(f"{Colors.YELLOW}No audit log found at {log_path}{Colors.RESET}")
+            print("Use --audit flag to enable audit logging.")
+            sys.exit(0)
+
+        entries = []
+        try:
+            import json as json_module
+
+            with open(log_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            entries.append(json_module.loads(line))
+                        except json_module.JSONDecodeError:
+                            continue
+        except OSError as e:
+            print(f"{Colors.RED}Error reading audit log: {e}{Colors.RESET}")
+            sys.exit(1)
+
+        # Get last N entries
+        limit = args.show_audit
+        entries = entries[-limit:][::-1]
+
+        if not entries:
+            print(f"{Colors.DIM}No audit log entries found.{Colors.RESET}")
+            sys.exit(0)
+
+        print()
+        print(f"{Colors.BOLD}{Colors.CYAN}Audit Log{Colors.RESET} ({len(entries)} entries)")
+        print(f"{Colors.DIM}{'─' * 70}{Colors.RESET}")
+
+        for entry in entries:
+            timestamp = entry.get("timestamp", "")[:19]  # Trim to seconds
+            event = entry.get("event", "unknown")
+            message = entry.get("message", "")
+            success = entry.get("success", True)
+
+            # Color code by event type and success
+            if not success:
+                color = Colors.RED
+                icon = "✗"
+            elif event.startswith("credential") or event.startswith("permission"):
+                color = Colors.YELLOW
+                icon = "⚡"
+            elif event.startswith("api"):
+                color = Colors.CYAN
+                icon = "→"
+            elif event.startswith("config"):
+                color = Colors.MAGENTA
+                icon = "⚙"
+            elif event.startswith("session"):
+                color = Colors.GREEN
+                icon = "●"
+            else:
+                color = Colors.WHITE
+                icon = "•"
+
+            print(f"{Colors.DIM}{timestamp}{Colors.RESET} {color}{icon} {event}{Colors.RESET}")
+            if message:
+                print(f"  {message}")
+
+            # Show details if present
+            details = entry.get("details", {})
+            if details and args.verbose:
+                for k, v in details.items():
+                    print(f"    {Colors.DIM}{k}: {v}{Colors.RESET}")
+
+        print()
+        print(f"{Colors.DIM}Log file: {log_path}{Colors.RESET}")
+        sys.exit(0)
 
     # Handle --setup flag
     if args.setup:
