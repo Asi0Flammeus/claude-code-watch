@@ -25,6 +25,8 @@ def create_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   claude-watch              Show usage in formatted view
+  claude-watch --current    Show only current session (compact)
+  claude-watch --watch --current  Live compact monitoring
   claude-watch --analytics  Show detailed analytics and trends
   claude-watch --forecast   Show usage forecast and recommendations
   claude-watch --setup      Run interactive setup wizard
@@ -38,6 +40,8 @@ Examples:
   claude-watch --prompt     Output for shell prompt
   claude-watch --tmux       Output for tmux status bar
   claude-watch --watch      Live updating display
+  claude-watch --report weekly  Generate weekly HTML report
+  claude-watch --report monthly --open  Generate and open monthly report
   claude-watch --update     Check for and install updates
   ccw                       Short alias (add to shell config)
 
@@ -134,6 +138,11 @@ Setup:
         metavar="SEC",
         help="Live updating display. Interval: 10-300 seconds (default: 30).",
     )
+    parser.add_argument(
+        "--current",
+        action="store_true",
+        help="Show only current session (compact view). Use with --watch for minimal monitoring.",
+    )
 
     # Export arguments
     parser.add_argument(
@@ -197,6 +206,20 @@ Setup:
         "--install-hook",
         action="store_true",
         help="Generate and install hook to ~/.claude/settings.json.",
+    )
+
+    # Report arguments
+    parser.add_argument(
+        "--report",
+        "-r",
+        choices=["weekly", "monthly"],
+        metavar="PERIOD",
+        help="Generate HTML usage report. PERIOD: weekly or monthly.",
+    )
+    parser.add_argument(
+        "--open",
+        action="store_true",
+        help="Open generated report in default browser.",
     )
 
     return parser
@@ -411,6 +434,11 @@ def main() -> None:
         elif args.tmux:
             from claude_watch.display.tmux import format_tmux
             print(format_tmux(data))
+        elif args.current:
+            from claude_watch.display.watch import display_current_compact
+            print()
+            display_current_compact(data)
+            print()
         else:
             display_usage(data)
         return
@@ -485,7 +513,28 @@ def main() -> None:
             analytics_mode=args.analytics,
             history_func=load_history if args.analytics else None,
             config=config if args.analytics else None,
+            current_only=args.current,
         )
+        return
+
+    # Handle standalone --current (without --watch)
+    if args.current:
+        from claude_watch.display.watch import display_current_compact
+
+        try:
+            data = fetch_usage_cached(cache_ttl=args.cache_ttl if args.cache_ttl else CACHE_MAX_AGE)
+        except Exception as e:
+            if not args.quiet:
+                print(f"{Colors.RED}Error fetching usage data: {e}{Colors.RESET}")
+            sys.exit(1)
+
+        if not args.no_record and data:
+            record_usage(data)
+
+        if not args.quiet:
+            print()
+            display_current_compact(data)
+            print()
         return
 
     # Handle --export flag
@@ -548,6 +597,18 @@ def main() -> None:
             display_usage(data)
             display_forecast(data, history, config)
         return
+
+    # Handle --report flag
+    if args.report:
+        from claude_watch.reports import run_report
+
+        exit_code = run_report(
+            period=args.report,
+            data=data,
+            config=config,
+            open_browser=args.open,
+        )
+        sys.exit(exit_code)
 
     # Handle --analytics flag
     if args.analytics:
