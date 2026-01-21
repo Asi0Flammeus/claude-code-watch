@@ -934,6 +934,28 @@ def main() -> None:
         else:
             display_usage(data)
             display_analytics(data, history, config)
+
+            # Fetch and display Admin API data if configured
+            if config.get("use_admin_api") and config.get("admin_api_key"):
+                from claude_watch.api.client import fetch_admin_usage
+                from claude_watch.display.analytics import display_admin_usage
+
+                try:
+                    if not args.quiet:
+                        print(f"{Colors.DIM}Fetching organization usage from Admin API...{Colors.RESET}")
+                    admin_data = fetch_admin_usage(
+                        admin_key=config["admin_api_key"],
+                        timeout=args.timeout,
+                        proxy=args.proxy,
+                    )
+                    if admin_data:
+                        display_admin_usage(admin_data, config)
+                    else:
+                        print(f"{Colors.DIM}No usage data available from Admin API{Colors.RESET}")
+                except Exception as e:
+                    if not args.quiet:
+                        print(f"{Colors.YELLOW}Admin API fetch failed: {e}{Colors.RESET}")
+                        print(f"{Colors.DIM}Showing local analytics only{Colors.RESET}")
         return
 
     # Handle --json output
