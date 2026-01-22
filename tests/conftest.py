@@ -4,13 +4,14 @@ Pytest fixtures for claude-watch tests.
 Test imports use the src/claude_watch/ package.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Path Constants
@@ -145,7 +146,9 @@ def mock_fetch_usage(usage_normal):
 @pytest.fixture
 def mock_credentials(credentials_valid):
     """Mock get_credentials to return valid credentials."""
-    with patch("claude_watch.config.credentials.get_credentials", return_value=credentials_valid) as mock:
+    with patch(
+        "claude_watch.config.credentials.get_credentials", return_value=credentials_valid
+    ) as mock:
         yield mock
 
 

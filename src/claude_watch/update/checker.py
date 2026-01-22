@@ -75,25 +75,68 @@ def compare_versions(v1: str, v2: str) -> int:
     return 0
 
 
-def detect_installation_method() -> Optional[str]:
+def detect_installation_method() -> Tuple[Optional[str], Optional[str]]:
     """Detect how claude-watch was installed.
 
     Returns:
-        'uv' - installed via uv tool
-        'pipx' - installed via pipx
-        'pip' - installed via pip
-        None - unknown/development installation
+        Tuple of (method, source_path) where:
+        - method: 'uv-editable', 'uv', 'pipx', 'pip', or None
+        - source_path: Local path for editable installs, None otherwise
     """
     # Check for uv tool installation
     try:
         result = subprocess.run(
-            ["uv", "tool", "list"],
+            ["uv", "tool", "list", "--show-paths"],
             capture_output=True,
             text=True,
             timeout=10,
         )
         if result.returncode == 0 and "claude-watch" in result.stdout:
-            return "uv"
+            # Check if it's an editable install by looking at the source
+            # uv tool list --show-paths shows the venv path
+            # We need to check if installed from local path
+            for line in result.stdout.splitlines():
+                if "claude-watch" in line:
+                    # Check pip show in uv tool venv for editable location
+                    try:
+                        pip_result = subprocess.run(
+                            ["pip", "show", "claude-watch"],
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                            env={
+                                **subprocess.os.environ,
+                                "PATH": subprocess.os.environ.get("PATH", ""),
+                            },
+                        )
+                        if pip_result.returncode == 0:
+                            for pip_line in pip_result.stdout.splitlines():
+                                if pip_line.startswith("Editable project location:"):
+                                    path = pip_line.split(":", 1)[1].strip()
+                                    return ("uv-editable", path)
+                                if pip_line.startswith("Location:") and "asi0-repos" in pip_line:
+                                    # Installed from local but check for editable marker
+                                    pass
+                    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+                        pass
+
+                    # Also check via importlib for editable installs
+                    try:
+                        import importlib.util
+
+                        spec = importlib.util.find_spec("claude_watch")
+                        if spec and spec.origin:
+                            origin = str(spec.origin)
+                            # If origin is in a repos/project directory, it's editable
+                            if "/asi0-repos/" in origin or "/src/claude_watch/" in origin:
+                                # Extract the project root
+                                if "/src/claude_watch/" in origin:
+                                    project_root = origin.split("/src/claude_watch/")[0]
+                                    return ("uv-editable", project_root)
+                    except (ImportError, AttributeError):
+                        pass
+
+                    return ("uv", None)
     except (subprocess.SubprocessError, FileNotFoundError, OSError):
         pass
 
@@ -106,22 +149,23 @@ def detect_installation_method() -> Optional[str]:
             timeout=10,
         )
         if result.returncode == 0 and "claude-watch" in result.stdout:
-            return "pipx"
+            return ("pipx", None)
     except (subprocess.SubprocessError, FileNotFoundError, OSError):
         pass
 
     # Check if installed via pip (in site-packages)
     try:
         import importlib.util
+
         spec = importlib.util.find_spec("claude_watch")
         if spec and spec.origin:
             origin = str(spec.origin)
             if "site-packages" in origin:
-                return "pip"
+                return ("pip", None)
     except (ImportError, AttributeError):
         pass
 
-    return None
+    return (None, None)
 
 
 def fetch_latest_version(current_version: str = "0.0.0") -> Optional[str]:
@@ -154,25 +198,47 @@ def fetch_latest_version(current_version: str = "0.0.0") -> Optional[str]:
         return None
 
 
-def run_upgrade(method: str) -> Tuple[bool, str]:
+def run_upgrade(method: str, source_path: Optional[str] = None) -> Tuple[bool, str]:
     """Run the upgrade command for the detected installation method.
 
     Args:
-        method: Installation method ('uv', 'pipx', or 'pip')
+        method: Installation method ('uv-editable', 'uv', 'pipx', or 'pip')
+        source_path: Local path for editable installs
 
     Returns:
         (success, message) tuple
     """
     github_url = f"git+https://github.com/{GITHUB_REPO}.git"
-    commands = {
-        # uv/pipx remember install source, so upgrade pulls from original git URL
-        "uv": ["uv", "tool", "upgrade", "claude-watch"],
-        "pipx": ["pipx", "upgrade", "claude-watch"],
-        # pip needs explicit URL since it doesn't track source
-        "pip": [sys.executable, "-m", "pip", "install", "--upgrade", github_url],
-    }
 
-    cmd = commands.get(method)
+    # For editable installs, git pull then reinstall
+    if method == "uv-editable" and source_path:
+        # First, git pull to get latest changes
+        try:
+            git_result = subprocess.run(
+                ["git", "pull"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=source_path,
+            )
+            if git_result.returncode != 0:
+                # Not a git repo or pull failed, try reinstall anyway
+                pass
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
+            pass
+
+        # Reinstall editable
+        cmd = ["uv", "tool", "install", "--force", "--editable", source_path]
+    else:
+        commands = {
+            # uv/pipx remember install source, so upgrade pulls from original git URL
+            "uv": ["uv", "tool", "upgrade", "claude-watch"],
+            "pipx": ["pipx", "upgrade", "claude-watch"],
+            # pip needs explicit URL since it doesn't track source
+            "pip": [sys.executable, "-m", "pip", "install", "--upgrade", github_url],
+        }
+        cmd = commands.get(method)
+
     if not cmd:
         return False, f"Unknown installation method: {method}"
 
@@ -184,6 +250,8 @@ def run_upgrade(method: str) -> Tuple[bool, str]:
             timeout=120,
         )
         if result.returncode == 0:
+            if method == "uv-editable":
+                return True, f"Successfully reinstalled from {source_path}"
             return True, f"Successfully upgraded via {method}"
         else:
             error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
@@ -204,7 +272,7 @@ def check_for_update(current_version: str, quiet: bool = False) -> Optional[dict
         quiet: If True, suppress output messages.
 
     Returns:
-        Dict with 'current', 'latest', 'update_available', 'method' keys,
+        Dict with 'current', 'latest', 'update_available', 'method', 'source_path' keys,
         or None if check failed.
     """
     if not quiet:
@@ -213,26 +281,30 @@ def check_for_update(current_version: str, quiet: bool = False) -> Optional[dict
     latest = fetch_latest_version(current_version)
     if latest is None:
         if not quiet:
-            print(f"{Colors.YELLOW}Could not check for updates (GitHub unreachable or no releases){Colors.RESET}")
+            print(
+                f"{Colors.YELLOW}Could not check for updates (GitHub unreachable or no releases){Colors.RESET}"
+            )
         return None
 
     update_available = compare_versions(current_version, latest) < 0
-    method = detect_installation_method()
+    method, source_path = detect_installation_method()
 
     return {
         "current": current_version,
         "latest": latest,
         "update_available": update_available,
         "method": method,
+        "source_path": source_path,
     }
 
 
-def run_update(current_version: str, check_only: bool = False) -> int:
+def run_update(current_version: str, check_only: bool = False, force: bool = False) -> int:
     """Run the update process.
 
     Args:
         current_version: Current installed version.
         check_only: If True, only check for updates without installing.
+        force: If True, reinstall even if already on latest version (for editable installs).
 
     Returns:
         Exit code (0 for success, 1 for error, 2 for no update available)
@@ -245,14 +317,44 @@ def run_update(current_version: str, check_only: bool = False) -> int:
     latest = result["latest"]
     update_available = result["update_available"]
     method = result["method"]
+    source_path = result.get("source_path")
 
     print()
     print(f"  Current version: {Colors.CYAN}{current}{Colors.RESET}")
     print(f"  Latest version:  {Colors.CYAN}{latest}{Colors.RESET}")
+    if method:
+        method_display = method
+        if method == "uv-editable" and source_path:
+            method_display = f"uv-editable ({source_path})"
+        print(f"  Install method:  {Colors.DIM}{method_display}{Colors.RESET}")
     print()
+
+    # For editable installs with force, always proceed
+    if force and method == "uv-editable" and source_path:
+        print(f"{Colors.CYAN}Force reinstall requested{Colors.RESET}")
+        print()
+        print(
+            f"Pulling latest changes and reinstalling from {Colors.CYAN}{source_path}{Colors.RESET}..."
+        )
+        print()
+
+        success, message = run_upgrade(method, source_path)
+
+        if success:
+            print(f"{Colors.GREEN}✓ {message}{Colors.RESET}")
+            print()
+            print(f"Run {Colors.CYAN}claude-watch --version{Colors.RESET} to verify.")
+            return 0
+        else:
+            print(f"{Colors.RED}✗ {message}{Colors.RESET}")
+            return 1
 
     if not update_available:
         print(f"{Colors.GREEN}✓ You are running the latest version{Colors.RESET}")
+        if method == "uv-editable" and source_path:
+            print()
+            print(f"{Colors.DIM}Editable install - to reload local changes:{Colors.RESET}")
+            print(f"  {Colors.CYAN}ccw --update force{Colors.RESET}  (git pull + reinstall)")
         return 2
 
     print(f"{Colors.YELLOW}Update available: {current} → {latest}{Colors.RESET}")
@@ -275,15 +377,22 @@ def run_update(current_version: str, check_only: bool = False) -> int:
         print(f"  {Colors.CYAN}pip install --upgrade claude-watch{Colors.RESET}")
         return 1
 
-    print(f"Updating via {Colors.CYAN}{method}{Colors.RESET}...")
+    if method == "uv-editable" and source_path:
+        print(
+            f"Pulling latest changes and reinstalling from {Colors.CYAN}{source_path}{Colors.RESET}..."
+        )
+    else:
+        print(f"Updating via {Colors.CYAN}{method}{Colors.RESET}...")
     print()
 
-    success, message = run_upgrade(method)
+    success, message = run_upgrade(method, source_path)
 
     if success:
         print(f"{Colors.GREEN}✓ {message}{Colors.RESET}")
         print()
-        print(f"Restart your shell or run {Colors.CYAN}claude-watch --version{Colors.RESET} to verify.")
+        print(
+            f"Restart your shell or run {Colors.CYAN}claude-watch --version{Colors.RESET} to verify."
+        )
         return 0
     else:
         print(f"{Colors.RED}✗ {message}{Colors.RESET}")

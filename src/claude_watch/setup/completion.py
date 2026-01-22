@@ -4,11 +4,12 @@ Provides functions for installing and configuring shell tab completion
 for bash, zsh, and fish shells.
 """
 
+from __future__ import annotations
+
 import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Callable, Optional
 
 from claude_watch.display.colors import Colors
 
@@ -36,7 +37,7 @@ def detect_shell() -> str:
     return "bash"  # Default to bash
 
 
-def get_completion_source_path() -> Optional[Path]:
+def get_completion_source_path() -> Path | None:
     """Find the completions directory from the package installation.
 
     Returns:
@@ -97,7 +98,7 @@ SHELL_CONFIGS: dict[str, dict] = {
 }
 
 
-def setup_shell_completion(shell: Optional[str] = None) -> bool:
+def setup_shell_completion(shell: str | None = None) -> bool:
     """Set up shell completion for the user's shell.
 
     Args:
@@ -113,7 +114,9 @@ def setup_shell_completion(shell: Optional[str] = None) -> bool:
 
     if not completions_source:
         print(f"{Colors.YELLOW}Could not find completion scripts.{Colors.RESET}")
-        print(f"{Colors.DIM}You can manually install from the project's completions/ directory.{Colors.RESET}")
+        print(
+            f"{Colors.DIM}You can manually install from the project's completions/ directory.{Colors.RESET}"
+        )
         return False
 
     config = SHELL_CONFIGS.get(shell)
@@ -144,7 +147,9 @@ def setup_shell_completion(shell: Optional[str] = None) -> bool:
                 alt_dest = bash_completion_dir / "claude-watch"
                 if os.access(str(bash_completion_dir), os.W_OK):
                     shutil.copy2(source_file, alt_dest)
-                    print(f"{Colors.DIM}Also copied to system completions: {alt_dest}{Colors.RESET}")
+                    print(
+                        f"{Colors.DIM}Also copied to system completions: {alt_dest}{Colors.RESET}"
+                    )
                     return True
 
             # Add source line to rc file
@@ -157,7 +162,9 @@ def setup_shell_completion(shell: Optional[str] = None) -> bool:
                             f.write(source_line)
                         print(f"{Colors.GREEN}✓ Added source line to {rc_file}{Colors.RESET}")
                     else:
-                        print(f"{Colors.DIM}Completion already configured in {rc_file}{Colors.RESET}")
+                        print(
+                            f"{Colors.DIM}Completion already configured in {rc_file}{Colors.RESET}"
+                        )
                     break
 
         print(f"{Colors.DIM}Restart your shell or run: source {dest_file}{Colors.RESET}")
@@ -165,7 +172,9 @@ def setup_shell_completion(shell: Optional[str] = None) -> bool:
 
     except PermissionError:
         print(f"{Colors.YELLOW}Permission denied writing to {dest_dir}{Colors.RESET}")
-        print(f"{Colors.DIM}You can manually copy {source_file} to your completions directory.{Colors.RESET}")
+        print(
+            f"{Colors.DIM}You can manually copy {source_file} to your completions directory.{Colors.RESET}"
+        )
         return False
     except Exception as e:
         print(f"{Colors.RED}Error setting up completion: {e}{Colors.RESET}")

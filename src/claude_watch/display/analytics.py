@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 from claude_watch.display.colors import Colors
+from claude_watch.pricing import PRICING, calculate_cost
 
 # Default constants (can be overridden by passing config)
 HISTORY_FILE = Path.home() / ".claude" / ".usage_history.json"
@@ -40,17 +41,8 @@ SUBSCRIPTION_PLANS = {
     },
 }
 
-API_PRICING = {
-    "claude-sonnet-4-5-20250929": (3.00, 15.00, 0.30),
-    "claude-sonnet-4-20250514": (3.00, 15.00, 0.30),
-    "claude-opus-4-5-20251101": (15.00, 75.00, 1.50),
-    "claude-opus-4-20250514": (15.00, 75.00, 1.50),
-    "claude-haiku-4-5-20251101": (1.00, 5.00, 0.10),
-    "claude-3-5-sonnet-20241022": (3.00, 15.00, 0.30),
-    "claude-3-5-haiku-20241022": (1.00, 5.00, 0.10),
-    "claude-3-haiku-20240307": (0.25, 1.25, 0.03),
-    "default": (3.00, 15.00, 0.30),
-}
+# Re-export for backwards compatibility (deprecated, use pricing module)
+API_PRICING = {model: (p.input, p.output, p.cache_read) for model, p in PRICING.items()}
 
 
 def make_sparkline(
@@ -257,18 +249,12 @@ def calculate_token_cost(
         output_tok: Number of output tokens.
         cache_tok: Number of cache read tokens.
         model: Model identifier for pricing lookup.
-        pricing: Optional custom pricing dict (defaults to API_PRICING).
+        pricing: Optional custom pricing dict (ignored, kept for backwards compatibility).
 
     Returns:
         Total cost in dollars.
     """
-    if pricing is None:
-        pricing = API_PRICING
-    model_pricing = pricing.get(model, pricing.get("default", (3.00, 15.00, 0.30)))
-    input_cost = (input_tok / 1_000_000) * model_pricing[0]
-    output_cost = (output_tok / 1_000_000) * model_pricing[1]
-    cache_cost = (cache_tok / 1_000_000) * model_pricing[2]
-    return input_cost + output_cost + cache_cost
+    return calculate_cost(input_tok, output_tok, cache_tok, 0, model)
 
 
 def display_admin_usage(

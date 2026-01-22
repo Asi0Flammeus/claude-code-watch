@@ -2,6 +2,8 @@
 Tests for configuration management functions.
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path
@@ -321,15 +323,18 @@ class TestMigrateConfig:
         assert migrated["_config_version"] == CONFIG_VERSION
 
     def test_already_has_shell_completion_not_migrated(self):
-        """Test config with shell_completion but no version marker."""
+        """Test config with all current fields and version marker is not migrated."""
         config_with_field = {
             "subscription_plan": "pro",
             "shell_completion_installed": True,
+            "webhook_url": None,
+            "webhook_secret": None,
+            "_config_version": CONFIG_VERSION,  # Current version - no migration needed
         }
 
         migrated, was_migrated = migrate_config(config_with_field)
 
-        # No migration needed since field already exists
+        # No migration needed since already at current version
         assert was_migrated is False
 
     def test_load_config_auto_migrates(self, tmp_path, capsys):

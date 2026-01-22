@@ -20,7 +20,7 @@ def load_notify_state() -> dict:
     try:
         with open(NOTIFY_STATE_FILE) as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         return {"last_thresholds": [], "last_notified_at": None}
 
 
@@ -63,7 +63,7 @@ def send_notification_macos(title: str, message: str, urgency: str = "normal") -
 
 def send_notification_windows(title: str, message: str, urgency: str = "normal") -> bool:
     """Send notification on Windows using PowerShell toast."""
-    script = f'''
+    script = f"""
     [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
     [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 
@@ -82,7 +82,7 @@ def send_notification_windows(title: str, message: str, urgency: str = "normal")
     $xml.LoadXml($template)
     $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("claude-watch").Show($toast)
-    '''
+    """
     try:
         subprocess.run(
             ["powershell", "-Command", script],
@@ -227,7 +227,7 @@ def run_notify_daemon(
     print(f"{Colors.CYAN}Starting notification daemon...{Colors.RESET}")
     print(f"  Thresholds: {', '.join(str(t) + '%' for t in sorted(thresholds))}")
     print(f"  Interval: {interval}s")
-    print(f"  Press Ctrl+C to stop")
+    print("  Press Ctrl+C to stop")
     print()
 
     try:

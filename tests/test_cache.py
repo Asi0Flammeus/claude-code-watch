@@ -8,6 +8,8 @@ Tests cover:
 - fetch_usage_cached() - fetching with caching and error handling
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -17,7 +19,6 @@ import pytest
 import claude_watch.api.cache as cache_module
 from claude_watch.api.cache import get_stale_cache, load_cache, save_cache
 from claude_watch.api.client import fetch_usage_cached
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test load_cache()
@@ -219,7 +220,9 @@ class TestFetchUsageCached:
 
         with patch.object(cache_module, "CACHE_FILE", cache_file):
             with patch.object(cache_module, "CACHE_MAX_AGE", 60):
-                with patch("claude_watch.api.client.fetch_usage", return_value=usage_high) as mock_fetch:
+                with patch(
+                    "claude_watch.api.client.fetch_usage", return_value=usage_high
+                ) as mock_fetch:
                     result = fetch_usage_cached()
 
         mock_fetch.assert_called_once()
@@ -231,7 +234,9 @@ class TestFetchUsageCached:
         # No cache file exists
 
         with patch.object(cache_module, "CACHE_FILE", cache_file):
-            with patch("claude_watch.api.client.fetch_usage", return_value=usage_normal) as mock_fetch:
+            with patch(
+                "claude_watch.api.client.fetch_usage", return_value=usage_normal
+            ) as mock_fetch:
                 result = fetch_usage_cached()
 
         mock_fetch.assert_called_once()
@@ -255,7 +260,9 @@ class TestFetchUsageCached:
         # No cache file exists
 
         with patch.object(cache_module, "CACHE_FILE", cache_file):
-            with patch("claude_watch.api.client.fetch_usage", side_effect=RuntimeError("Network error")):
+            with patch(
+                "claude_watch.api.client.fetch_usage", side_effect=RuntimeError("Network error")
+            ):
                 result = fetch_usage_cached(silent=True)
 
         assert result is None
@@ -273,7 +280,9 @@ class TestFetchUsageCached:
 
         with patch.object(cache_module, "CACHE_FILE", cache_file):
             with patch.object(cache_module, "CACHE_MAX_AGE", 60):
-                with patch("claude_watch.api.client.fetch_usage", side_effect=RuntimeError("Network error")):
+                with patch(
+                    "claude_watch.api.client.fetch_usage", side_effect=RuntimeError("Network error")
+                ):
                     result = fetch_usage_cached(silent=True)
 
         # Should return stale cache as fallback
@@ -285,7 +294,9 @@ class TestFetchUsageCached:
         cache_file = tmp_path / ".usage_cache.json"
 
         with patch.object(cache_module, "CACHE_FILE", cache_file):
-            with patch("claude_watch.api.client.fetch_usage", side_effect=RuntimeError("Network error")):
+            with patch(
+                "claude_watch.api.client.fetch_usage", side_effect=RuntimeError("Network error")
+            ):
                 with pytest.raises(RuntimeError) as exc_info:
                     fetch_usage_cached(silent=False)
 

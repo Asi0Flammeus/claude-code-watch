@@ -8,6 +8,8 @@ Tests cover:
 - check_for_update() - update availability check
 """
 
+from __future__ import annotations
+
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
@@ -24,7 +26,6 @@ from claude_watch.update.checker import (
     run_update,
     run_upgrade,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test parse_version()
@@ -154,10 +155,13 @@ class TestDetectInstallationMethod:
         with patch("claude_watch.update.checker.subprocess.run", return_value=mock_result):
             result = detect_installation_method()
 
-        assert result == "uv"
+        # Returns tuple (method, source_path)
+        # Method can be "uv" or "uv-editable" depending on install type
+        assert result[0] in ("uv", "uv-editable")
 
     def test_detects_pipx_installation(self):
         """Test detecting pipx installation."""
+
         def side_effect(cmd, **kwargs):
             result = MagicMock()
             if cmd[0] == "uv":
@@ -171,7 +175,8 @@ class TestDetectInstallationMethod:
         with patch("claude_watch.update.checker.subprocess.run", side_effect=side_effect):
             result = detect_installation_method()
 
-        assert result == "pipx"
+        # Returns tuple (method, source_path)
+        assert result[0] == "pipx"
 
     def test_returns_none_when_not_found(self):
         """Test returns None when not found in any method."""
@@ -183,7 +188,8 @@ class TestDetectInstallationMethod:
             with patch("importlib.util.find_spec", return_value=None):
                 result = detect_installation_method()
 
-        assert result is None
+        # Returns tuple (method, source_path)
+        assert result == (None, None)
 
     def test_pip_detection(self):
         """Test detecting pip installation."""
@@ -198,7 +204,8 @@ class TestDetectInstallationMethod:
             with patch("importlib.util.find_spec", return_value=mock_spec):
                 result = detect_installation_method()
 
-        assert result == "pip"
+        # Returns tuple (method, source_path)
+        assert result[0] == "pip"
 
     def test_command_not_found(self):
         """Test when uv/pipx commands are not found."""
@@ -209,7 +216,8 @@ class TestDetectInstallationMethod:
             with patch("importlib.util.find_spec", return_value=None):
                 result = detect_installation_method()
 
-        assert result is None
+        # Returns tuple (method, source_path)
+        assert result == (None, None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -264,7 +272,9 @@ class TestFetchLatestVersion:
 
     def test_network_error(self):
         """Test network error returns None."""
-        with patch("claude_watch.update.checker.urlopen", side_effect=URLError("Connection refused")):
+        with patch(
+            "claude_watch.update.checker.urlopen", side_effect=URLError("Connection refused")
+        ):
             result = fetch_latest_version()
 
         assert result is None
@@ -364,7 +374,10 @@ class TestCheckForUpdate:
     def test_returns_dict_or_none(self):
         """Test check_for_update returns dict or None."""
         with patch("claude_watch.update.checker.fetch_latest_version", return_value="0.2.0"):
-            with patch("claude_watch.update.checker.detect_installation_method", return_value="pip"):
+            # detect_installation_method now returns tuple (method, source_path)
+            with patch(
+                "claude_watch.update.checker.detect_installation_method", return_value=("pip", None)
+            ):
                 result = check_for_update("0.1.0", quiet=True)
 
         assert result is not None

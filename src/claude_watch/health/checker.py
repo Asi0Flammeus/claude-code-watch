@@ -455,9 +455,7 @@ def run_health_check(
     print(f"{Colors.DIM}{'─' * 50}{Colors.RESET}")
 
     if report.all_passed:
-        print(
-            f"{Colors.GREEN}✓ All {report.passed} checks passed{Colors.RESET}"
-        )
+        print(f"{Colors.GREEN}✓ All {report.passed} checks passed{Colors.RESET}")
         return ExitCode.SUCCESS
     else:
         print(

@@ -3,6 +3,8 @@
 Provides functions for caching API responses to reduce network calls.
 """
 
+from __future__ import annotations
+
 import json
 import os
 from datetime import datetime, timezone

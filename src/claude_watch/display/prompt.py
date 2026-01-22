@@ -4,8 +4,9 @@ Provides compact output formats for shell prompt integration (PS1, etc.).
 Each format outputs a single line suitable for embedding in prompts.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from claude_watch.utils.time import parse_reset_time
 
@@ -95,7 +96,7 @@ def calculate_trend(
     return "→"
 
 
-def get_trend_indicator(data: dict, history: Optional[list] = None) -> str:
+def get_trend_indicator(data: dict, history: list | None = None) -> str:
     """Get trend indicator for current session usage.
 
     Args:
@@ -107,6 +108,7 @@ def get_trend_indicator(data: dict, history: Optional[list] = None) -> str:
     """
     if history is None:
         from claude_watch.history.storage import load_history
+
         history = load_history()
 
     five_hour = data.get("five_hour") or {}
@@ -238,7 +240,7 @@ def format_prompt(
     data: dict,
     fmt: str = "default",
     include_trend: bool = True,
-    history: Optional[list] = None,
+    history: list | None = None,
     color: bool = False,
 ) -> str:
     """Format usage data for shell prompt output.

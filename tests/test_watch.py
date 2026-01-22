@@ -1,15 +1,18 @@
 """Tests for watch mode display functions."""
 
-import pytest
-from unittest.mock import patch
+from __future__ import annotations
+
 import platform
+from unittest.mock import patch
+
+import pytest
 
 from claude_watch.display.watch import (
-    clear_screen,
-    format_duration,
-    format_countdown,
     calculate_delta,
+    clear_screen,
+    format_countdown,
     format_delta,
+    format_duration,
     print_watch_header,
     print_watch_summary,
 )
@@ -106,15 +109,15 @@ class TestFormatDelta:
 class TestClearScreen:
     """Tests for clear_screen function."""
 
-    @patch('os.system')
-    @patch('platform.system')
+    @patch("os.system")
+    @patch("platform.system")
     def test_windows_uses_cls(self, mock_platform, mock_system):
         mock_platform.return_value = "Windows"
         clear_screen()
         mock_system.assert_called_once_with("cls")
 
-    @patch('sys.stdout')
-    @patch('platform.system')
+    @patch("sys.stdout")
+    @patch("platform.system")
     def test_unix_uses_ansi(self, mock_platform, mock_stdout):
         mock_platform.return_value = "Linux"
         clear_screen()

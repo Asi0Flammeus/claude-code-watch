@@ -48,6 +48,11 @@ Examples:
   claude-watch --audit      Enable audit logging for operations
   claude-watch --show-audit Show recent audit log entries
   claude-watch --health-check Run system diagnostics
+  claude-watch --tokens     Show token usage (last 7 days)
+  claude-watch --tokens 30  Show token usage (last 30 days)
+  claude-watch --tokens-stats   Show usage statistics (periods, avg, std)
+  claude-watch --tokens-status  Show token store metadata
+  claude-watch --tokens-reset   Rebuild token store from scratch
   ccw                       Short alias (add to shell config)
 
 Setup:
@@ -112,8 +117,8 @@ Setup:
         "-U",
         nargs="?",
         const="update",
-        metavar="check",
-        help="Check for and install updates. Use --update check to only check without installing.",
+        metavar="MODE",
+        help="Check for and install updates. Modes: check (check only), force (reinstall even if current).",
     )
     parser.add_argument(
         "--prompt",
@@ -201,6 +206,37 @@ Setup:
         "-f",
         action="store_true",
         help="Show usage forecast with projections and recommendations.",
+    )
+
+    # Token usage arguments
+    parser.add_argument(
+        "--tokens",
+        "-t",
+        nargs="?",
+        const=7,
+        type=int,
+        metavar="DAYS",
+        help="Show Claude Code token usage from conversation logs. DAYS: lookback period (default: 7).",
+    )
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="Force rescan of JSONL files to update token store (use with --tokens).",
+    )
+    parser.add_argument(
+        "--tokens-status",
+        action="store_true",
+        help="Show token store metadata (entry count, date range, file size).",
+    )
+    parser.add_argument(
+        "--tokens-reset",
+        action="store_true",
+        help="Clear token store and rebuild from current JSONL files.",
+    )
+    parser.add_argument(
+        "--tokens-stats",
+        action="store_true",
+        help="Show token usage statistics with period breakdown and averages.",
     )
 
     # Notification arguments
@@ -408,7 +444,8 @@ def main() -> None:
     # Handle --update flag
     if args.update is not None:
         check_only = args.update == "check"
-        exit_code = run_update(__version__, check_only=check_only)
+        force = args.update == "force"
+        exit_code = run_update(__version__, check_only=check_only, force=force)
         sys.exit(exit_code)
 
     # Load configuration
@@ -531,6 +568,7 @@ def main() -> None:
 
     # Handle --config flag
     if args.config is not None:
+
         def _show_config():
             """Display current configuration."""
             from datetime import datetime
@@ -605,15 +643,15 @@ def main() -> None:
 
             # Type conversion based on expected type
             expected_type = type(DEFAULT_CONFIG[key])
-            if expected_type == bool:
+            if expected_type is bool:
                 converted = value.lower() in ("true", "1", "yes", "on")
-            elif expected_type == int:
+            elif expected_type is int:
                 try:
                     converted = int(value)
                 except ValueError:
                     print(f"{Colors.RED}Error: '{key}' must be an integer{Colors.RESET}")
                     sys.exit(1)
-            elif expected_type == float:
+            elif expected_type is float:
                 try:
                     converted = float(value)
                 except ValueError:
@@ -638,12 +676,15 @@ def main() -> None:
             print(json.dumps(data, indent=2))
         elif args.prompt:
             from claude_watch.display.prompt import format_prompt
+
             print(format_prompt(data, args.prompt, color=args.prompt_color))
         elif args.tmux:
             from claude_watch.display.tmux import format_tmux
+
             print(format_tmux(data))
         elif args.current:
             from claude_watch.display.watch import display_current_compact
+
             print()
             display_current_compact(data)
             print()
@@ -913,6 +954,139 @@ def main() -> None:
             display_forecast(data, history, config)
         return
 
+    # Handle --sync standalone (without --tokens)
+    if (
+        args.sync
+        and args.tokens is None
+        and not args.tokens_stats
+        and not args.tokens_status
+        and not args.tokens_reset
+    ):
+        from claude_watch.history.persistence import get_token_store
+
+        store = get_token_store()
+        if not args.quiet:
+            print(f"{Colors.DIM}Force syncing token store...{Colors.RESET}")
+        result = store.sync(force=True)
+        if not args.quiet:
+            print(f"{Colors.GREEN}Sync complete.{Colors.RESET}")
+            print(f"  Scanned {result.files_scanned} files")
+            print(f"  Added {result.new_entries:,} new entries")
+            print(f"  Total entries: {result.total_entries:,}")
+        return
+
+    # Handle --tokens-status flag
+    if args.tokens_status:
+        from claude_watch.history.persistence import get_token_store
+
+        store = get_token_store()
+        status = store.get_status()
+
+        print()
+        print(f"{Colors.BOLD}{Colors.CYAN}Token Store Status{Colors.RESET}")
+        print()
+        print(f"  Store path:       {status['store_path']}")
+        print(f"  Store version:    {status['version']}")
+        print(f"  Total entries:    {status['total_entries']:,}")
+        print(f"  Scanned files:    {status['scanned_files']}")
+
+        if status["file_size_bytes"] > 0:
+            size_kb = status["file_size_bytes"] / 1024
+            if size_kb > 1024:
+                print(f"  File size:        {size_kb / 1024:.1f} MB")
+            else:
+                print(f"  File size:        {size_kb:.1f} KB")
+
+        if status["last_scan"]:
+            print(f"  Last scan:        {status['last_scan'][:19]}")
+
+        if status["date_range"]["oldest"]:
+            print()
+            print(
+                f"  Date range:       {status['date_range']['oldest'][:10]} to {status['date_range']['newest'][:10]}"
+            )
+
+        if status["by_project"]:
+            print()
+            print(f"  {Colors.DIM}Entries by project:{Colors.RESET}")
+            for proj, count in sorted(status["by_project"].items(), key=lambda x: -x[1])[:10]:
+                print(f"    {proj[:40]:<40} {count:>6}")
+            if len(status["by_project"]) > 10:
+                print(
+                    f"    {Colors.DIM}... and {len(status['by_project']) - 10} more{Colors.RESET}"
+                )
+
+        print()
+        return
+
+    # Handle --tokens-stats flag
+    if args.tokens_stats:
+        from claude_watch.display.tokens import display_token_stats, display_token_stats_json
+        from claude_watch.history.persistence import get_token_store, sync_and_get_display_data
+
+        # Use all available data (max lookback)
+        force_sync = args.sync
+
+        if not args.quiet:
+            store = get_token_store()
+            if force_sync or store.needs_sync():
+                print(f"{Colors.DIM}Syncing token store...{Colors.RESET}")
+
+        # Get display-ready data from store
+        display_data = sync_and_get_display_data(days=9999, force_sync=force_sync)
+
+        if args.json:
+            display_token_stats_json(display_data)
+        else:
+            display_token_stats(display_data)
+        return
+
+    # Handle --tokens-reset flag
+    if args.tokens_reset:
+        from claude_watch.history.persistence import get_token_store
+
+        store = get_token_store()
+
+        if not args.quiet:
+            print(f"{Colors.YELLOW}Resetting token store...{Colors.RESET}")
+
+        store.reset()
+        result = store.sync(force=True)
+
+        if not args.quiet:
+            print(f"{Colors.GREEN}Token store rebuilt.{Colors.RESET}")
+            print(f"  Scanned {result.files_scanned} files")
+            print(f"  Added {result.new_entries:,} entries")
+
+        return
+
+    # Handle --tokens flag (with persistent store)
+    if args.tokens is not None:
+        from claude_watch.display.tokens import display_token_usage, display_token_usage_json
+        from claude_watch.history.persistence import get_token_store, sync_and_get_display_data
+
+        days = args.tokens
+        force_sync = args.sync
+
+        # Show sync status
+        if not args.quiet:
+            store = get_token_store()
+            needs_sync = store.needs_sync()
+
+            if force_sync:
+                print(f"{Colors.DIM}Force syncing token store...{Colors.RESET}")
+            elif needs_sync:
+                print(f"{Colors.DIM}Syncing new conversation logs...{Colors.RESET}")
+
+        # Get display-ready data from persistent store (auto-syncs if needed)
+        display_data = sync_and_get_display_data(days=days, force_sync=force_sync)
+
+        if args.json:
+            display_token_usage_json(display_data)
+        else:
+            display_token_usage(display_data)
+        return
+
     # Handle --report flag
     if args.report:
         from claude_watch.reports import run_report
@@ -930,10 +1104,35 @@ def main() -> None:
         history = load_history()
         if args.json:
             from claude_watch.display.analytics import display_analytics_json
+
             display_analytics_json(data, history, config)
         else:
             display_usage(data)
             display_analytics(data, history, config)
+
+            # Fetch and display Admin API data if configured
+            if config.get("use_admin_api") and config.get("admin_api_key"):
+                from claude_watch.api.client import fetch_admin_usage
+                from claude_watch.display.analytics import display_admin_usage
+
+                try:
+                    if not args.quiet:
+                        print(
+                            f"{Colors.DIM}Fetching organization usage from Admin API...{Colors.RESET}"
+                        )
+                    admin_data = fetch_admin_usage(
+                        admin_key=config["admin_api_key"],
+                        timeout=args.timeout,
+                        proxy=args.proxy,
+                    )
+                    if admin_data:
+                        display_admin_usage(admin_data, config)
+                    else:
+                        print(f"{Colors.DIM}No usage data available from Admin API{Colors.RESET}")
+                except Exception as e:
+                    if not args.quiet:
+                        print(f"{Colors.YELLOW}Admin API fetch failed: {e}{Colors.RESET}")
+                        print(f"{Colors.DIM}Showing local analytics only{Colors.RESET}")
         return
 
     # Handle --json output

@@ -8,6 +8,8 @@ Tests cover:
 - Error handling (auth, network, parsing)
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,8 +22,14 @@ import claude_watch.config.credentials as credentials_module
 import claude_watch.history.storage as storage_module
 from claude_watch.api.client import fetch_usage
 from claude_watch.config.credentials import get_access_token, get_credentials
+from claude_watch.errors import (
+    AuthenticationExpiredError,
+    ClaudeWatchError,
+    NetworkOfflineError,
+    NetworkTimeoutError,
+    ServerError,
+)
 from claude_watch.history.storage import load_history, record_usage, save_history
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test fetch_usage()
@@ -57,11 +65,10 @@ class TestFetchUsage:
 
         with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
             with patch("claude_watch.api.client.urlopen", side_effect=http_error):
-                with pytest.raises(RuntimeError) as exc_info:
+                with pytest.raises(AuthenticationExpiredError) as exc_info:
                     fetch_usage()
 
         assert "Authentication failed" in str(exc_info.value)
-        assert "session may have expired" in str(exc_info.value)
 
     def test_api_error_500(self, credentials_valid):
         """Test 500 server error handling."""
@@ -75,10 +82,10 @@ class TestFetchUsage:
 
         with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
             with patch("claude_watch.api.client.urlopen", side_effect=http_error):
-                with pytest.raises(RuntimeError) as exc_info:
+                with pytest.raises(ServerError) as exc_info:
                     fetch_usage()
 
-        assert "API error: 500" in str(exc_info.value)
+        assert "500" in str(exc_info.value)
 
     def test_network_error(self, credentials_valid):
         """Test network error handling."""
@@ -86,10 +93,10 @@ class TestFetchUsage:
 
         with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
             with patch("claude_watch.api.client.urlopen", side_effect=url_error):
-                with pytest.raises(RuntimeError) as exc_info:
+                with pytest.raises(NetworkOfflineError) as exc_info:
                     fetch_usage()
 
-        assert "Network error" in str(exc_info.value)
+        assert "Connection" in str(exc_info.value)
 
     def test_timeout_error(self, credentials_valid):
         """Test request timeout handling."""
@@ -97,10 +104,9 @@ class TestFetchUsage:
 
         with patch("claude_watch.api.client.get_access_token", return_value="test-token"):
             with patch("claude_watch.api.client.urlopen", side_effect=url_error):
-                with pytest.raises(RuntimeError) as exc_info:
+                with pytest.raises(NetworkTimeoutError) as exc_info:
                     fetch_usage()
 
-        assert "Network error" in str(exc_info.value)
         assert "timed out" in str(exc_info.value)
 
     def test_request_headers(self, usage_normal, credentials_valid):
@@ -165,8 +171,12 @@ class TestGetCredentials:
 
         # Simulate keychain returning None (not found)
         with patch.object(credentials_module.platform, "system", return_value="Darwin"):
-            with patch.object(credentials_module, "get_macos_keychain_credentials", return_value=None):
-                with patch.object(credentials_module, "get_credentials_path", return_value=creds_file):
+            with patch.object(
+                credentials_module, "get_macos_keychain_credentials", return_value=None
+            ):
+                with patch.object(
+                    credentials_module, "get_credentials_path", return_value=creds_file
+                ):
                     result = get_credentials()
 
         assert result["claudeAiOauth"]["accessToken"] == "test-access-token-12345"
@@ -201,7 +211,9 @@ class TestGetAccessToken:
 
     def test_missing_token(self, credentials_missing_token):
         """Test error when access token is missing."""
-        with patch.object(credentials_module, "get_credentials", return_value=credentials_missing_token):
+        with patch.object(
+            credentials_module, "get_credentials", return_value=credentials_missing_token
+        ):
             with pytest.raises(ValueError) as exc_info:
                 get_access_token()
 

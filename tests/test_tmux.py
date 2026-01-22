@@ -1,7 +1,10 @@
 """Tests for tmux status bar output formatting."""
 
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
 import pytest
-from datetime import datetime, timezone, timedelta
 
 from claude_watch.display.tmux import (
     format_tmux,
@@ -13,20 +16,25 @@ from claude_watch.display.tmux import (
 class TestGetTmuxColor:
     """Tests for get_tmux_color function."""
 
+    # Dracula theme colors
+    GREEN = "#50fa7b"
+    YELLOW = "#f1fa8c"
+    RED = "#ff5555"
+
     def test_low_usage_returns_green(self):
-        assert get_tmux_color(0) == "green"
-        assert get_tmux_color(50) == "green"
-        assert get_tmux_color(74) == "green"
+        assert get_tmux_color(0) == self.GREEN
+        assert get_tmux_color(50) == self.GREEN
+        assert get_tmux_color(74) == self.GREEN
 
     def test_medium_usage_returns_yellow(self):
-        assert get_tmux_color(75) == "yellow"
-        assert get_tmux_color(80) == "yellow"
-        assert get_tmux_color(89) == "yellow"
+        assert get_tmux_color(75) == self.YELLOW
+        assert get_tmux_color(80) == self.YELLOW
+        assert get_tmux_color(89) == self.YELLOW
 
     def test_high_usage_returns_red(self):
-        assert get_tmux_color(90) == "red"
-        assert get_tmux_color(95) == "red"
-        assert get_tmux_color(100) == "red"
+        assert get_tmux_color(90) == self.RED
+        assert get_tmux_color(95) == self.RED
+        assert get_tmux_color(100) == self.RED
 
 
 class TestFormatTmux:
@@ -47,45 +55,46 @@ class TestFormatTmux:
             "seven_day": {"utilization": 12},
         }
         result = format_tmux(data)
-        assert "#[fg=green]" in result
+        # Uses Dracula theme hex colors
+        assert "#[fg=#50fa7b]" in result  # Green
         assert "#[default]" in result
 
     def test_color_reflects_session_usage(self):
-        # Green session
+        # Green session (Dracula: #50fa7b)
         data_low = {
             "five_hour": {"utilization": 30, "resets_at": ""},
             "seven_day": {"utilization": 10},
         }
-        assert "#[fg=green]S:30%" in format_tmux(data_low)
+        assert "#[fg=#50fa7b]S:30%" in format_tmux(data_low)
 
-        # Yellow session
+        # Yellow session (Dracula: #f1fa8c)
         data_mid = {
             "five_hour": {"utilization": 80, "resets_at": ""},
             "seven_day": {"utilization": 10},
         }
-        assert "#[fg=yellow]S:80%" in format_tmux(data_mid)
+        assert "#[fg=#f1fa8c]S:80%" in format_tmux(data_mid)
 
-        # Red session
+        # Red session (Dracula: #ff5555)
         data_high = {
             "five_hour": {"utilization": 95, "resets_at": ""},
             "seven_day": {"utilization": 10},
         }
-        assert "#[fg=red]S:95%" in format_tmux(data_high)
+        assert "#[fg=#ff5555]S:95%" in format_tmux(data_high)
 
     def test_color_reflects_weekly_usage(self):
-        # Green weekly
+        # Green weekly (Dracula: #50fa7b)
         data = {
             "five_hour": {"utilization": 50, "resets_at": ""},
             "seven_day": {"utilization": 30},
         }
-        assert "#[fg=green]W:30%" in format_tmux(data)
+        assert "#[fg=#50fa7b]W:30%" in format_tmux(data)
 
-        # Red weekly
+        # Red weekly (Dracula: #ff5555)
         data_high = {
             "five_hour": {"utilization": 50, "resets_at": ""},
             "seven_day": {"utilization": 95},
         }
-        assert "#[fg=red]W:95%" in format_tmux(data_high)
+        assert "#[fg=#ff5555]W:95%" in format_tmux(data_high)
 
     def test_includes_reset_time_when_present(self):
         # Create a reset time 2 hours from now
@@ -138,14 +147,15 @@ class TestFormatTmuxMinimal:
         assert "#[default]" in result
 
     def test_includes_color(self):
+        # Dracula theme hex colors
         data = {"five_hour": {"utilization": 45}}
-        assert "#[fg=green]" in format_tmux_minimal(data)
+        assert "#[fg=#50fa7b]" in format_tmux_minimal(data)  # Green
 
         data = {"five_hour": {"utilization": 85}}
-        assert "#[fg=yellow]" in format_tmux_minimal(data)
+        assert "#[fg=#f1fa8c]" in format_tmux_minimal(data)  # Yellow
 
         data = {"five_hour": {"utilization": 95}}
-        assert "#[fg=red]" in format_tmux_minimal(data)
+        assert "#[fg=#ff5555]" in format_tmux_minimal(data)  # Red
 
     def test_handles_empty_data(self):
         result = format_tmux_minimal({})
