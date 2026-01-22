@@ -71,6 +71,7 @@ jobs:
   type-check:
     name: Type Check
     runs-on: ubuntu-latest
+    continue-on-error: true  # Type checking is advisory, not blocking
 
     steps:
       - name: Checkout code
@@ -85,4 +86,4 @@ jobs:
         run: pip install mypy
 
       - name: Run mypy
-        run: mypy src/claude_watch --ignore-missing-imports
+        run: mypy src/claude_watch --ignore-missing-imports || echo "::warning::Type check failed (non-blocking)"

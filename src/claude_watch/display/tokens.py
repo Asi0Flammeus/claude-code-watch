@@ -41,6 +41,8 @@ Expected data structure from token parser:
 }
 """
 
+from __future__ import annotations
+
 import json
 
 from claude_watch.display.colors import Colors

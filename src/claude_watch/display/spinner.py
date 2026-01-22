@@ -3,6 +3,8 @@
 Provides a simple threaded spinner with braille animation frames.
 """
 
+from __future__ import annotations
+
 import itertools
 import sys
 import threading
@@ -46,7 +48,7 @@ class Spinner:
             sys.stdout.flush()
             time.sleep(0.08)
 
-    def start(self) -> "Spinner":
+    def start(self) -> Spinner:
         """Start the spinner animation.
 
         Returns:
@@ -73,7 +75,7 @@ class Spinner:
                 sys.stdout.write(f"\r{' ' * (len(self.message) + 10)}\r")
             sys.stdout.flush()
 
-    def __enter__(self) -> "Spinner":
+    def __enter__(self) -> Spinner:
         """Context manager entry."""
         return self.start()
 
