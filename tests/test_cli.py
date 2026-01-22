@@ -64,7 +64,15 @@ class TestCLIHelp:
             text=True,
             env=get_test_env(),
         )
-        expected_args = ["--json", "--analytics", "--setup", "--config", "--no-color", "--no-record", "--dry-run"]
+        expected_args = [
+            "--json",
+            "--analytics",
+            "--setup",
+            "--config",
+            "--no-color",
+            "--no-record",
+            "--dry-run",
+        ]
         for arg in expected_args:
             assert arg in result.stdout, f"Missing argument {arg} in help output"
 
@@ -127,8 +135,16 @@ class TestCLIColors:
     def test_colors_class_has_all_required_colors(self):
         """Test Colors class has all required color codes."""
         required_colors = [
-            "RESET", "BOLD", "DIM", "GREEN", "YELLOW", "RED",
-            "CYAN", "WHITE", "GRAY", "MAGENTA"
+            "RESET",
+            "BOLD",
+            "DIM",
+            "GREEN",
+            "YELLOW",
+            "RED",
+            "CYAN",
+            "WHITE",
+            "GRAY",
+            "MAGENTA",
         ]
         for color in required_colors:
             assert hasattr(Colors, color), f"Missing color {color}"
@@ -180,7 +196,11 @@ class TestCLIEnvironmentVariables:
         env = os.environ.copy()
         env["CLAUDE_WATCH_CACHE_TTL"] = "120"
         result = subprocess.run(
-            [sys.executable, "-c", "from claude_watch.api.cache import CACHE_MAX_AGE; print(CACHE_MAX_AGE)"],
+            [
+                sys.executable,
+                "-c",
+                "from claude_watch.api.cache import CACHE_MAX_AGE; print(CACHE_MAX_AGE)",
+            ],
             capture_output=True,
             text=True,
             env=env,
@@ -194,7 +214,11 @@ class TestCLIEnvironmentVariables:
         env = os.environ.copy()
         env["CLAUDE_WATCH_CACHE_TTL"] = "invalid"
         result = subprocess.run(
-            [sys.executable, "-c", "from claude_watch.api.cache import CACHE_MAX_AGE; print(CACHE_MAX_AGE)"],
+            [
+                sys.executable,
+                "-c",
+                "from claude_watch.api.cache import CACHE_MAX_AGE; print(CACHE_MAX_AGE)",
+            ],
             capture_output=True,
             text=True,
             env=env,
@@ -208,7 +232,11 @@ class TestCLIEnvironmentVariables:
         env = os.environ.copy()
         env["CLAUDE_WATCH_HISTORY_DAYS"] = "90"
         result = subprocess.run(
-            [sys.executable, "-c", "from claude_watch.history.storage import MAX_HISTORY_DAYS; print(MAX_HISTORY_DAYS)"],
+            [
+                sys.executable,
+                "-c",
+                "from claude_watch.history.storage import MAX_HISTORY_DAYS; print(MAX_HISTORY_DAYS)",
+            ],
             capture_output=True,
             text=True,
             env=env,
@@ -222,7 +250,11 @@ class TestCLIEnvironmentVariables:
         env = os.environ.copy()
         env["CLAUDE_WATCH_HISTORY_DAYS"] = "not-a-number"
         result = subprocess.run(
-            [sys.executable, "-c", "from claude_watch.history.storage import MAX_HISTORY_DAYS; print(MAX_HISTORY_DAYS)"],
+            [
+                sys.executable,
+                "-c",
+                "from claude_watch.history.storage import MAX_HISTORY_DAYS; print(MAX_HISTORY_DAYS)",
+            ],
             capture_output=True,
             text=True,
             env=env,
@@ -238,9 +270,7 @@ class TestCLIConfig:
     def test_config_command_loads_config(self, tmp_path):
         """Test --config loads and displays configuration."""
         config_file = tmp_path / "config.json"
-        config_file.write_text(
-            json.dumps({"subscription_plan": "max_5x", "setup_completed": True})
-        )
+        config_file.write_text(json.dumps({"subscription_plan": "max_5x", "setup_completed": True}))
 
         config = load_config(config_file=config_file, silent=True)
         assert config["subscription_plan"] == "max_5x"
@@ -251,7 +281,9 @@ class TestCLIConfig:
         config_file = tmp_path / "config.json"
         config_file.write_text("{}")
 
-        config = load_config(config_file=config_file, silent=True, auto_migrate=False, validate=False)
+        config = load_config(
+            config_file=config_file, silent=True, auto_migrate=False, validate=False
+        )
         # Should have default values merged
         assert "subscription_plan" in config
         assert "auto_collect" in config
@@ -281,9 +313,7 @@ class TestCLIHistory:
         import claude_watch.history.storage as storage_module
 
         history_file = tmp_path / "history.json"
-        test_data = [
-            {"timestamp": "2024-12-19T10:00:00Z", "five_hour": 25.0, "seven_day": 10.0}
-        ]
+        test_data = [{"timestamp": "2024-12-19T10:00:00Z", "five_hour": 25.0, "seven_day": 10.0}]
         history_file.write_text(json.dumps(test_data))
 
         with patch.object(storage_module, "HISTORY_FILE", history_file):

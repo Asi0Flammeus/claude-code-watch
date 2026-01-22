@@ -179,15 +179,19 @@ def print_watch_header(
     ]
 
     if delta is not None:
-        header_parts.extend([
-            f"{Colors.DIM}|{Colors.RESET}",
-            f"Delta: {format_delta(delta)}",
-        ])
+        header_parts.extend(
+            [
+                f"{Colors.DIM}|{Colors.RESET}",
+                f"Delta: {format_delta(delta)}",
+            ]
+        )
 
-    header_parts.extend([
-        f"{Colors.DIM}|{Colors.RESET}",
-        f"{Colors.DIM}{time_str}{Colors.RESET}",
-    ])
+    header_parts.extend(
+        [
+            f"{Colors.DIM}|{Colors.RESET}",
+            f"{Colors.DIM}{time_str}{Colors.RESET}",
+        ]
+    )
 
     print(" ".join(header_parts))
     print(f"{Colors.DIM}{'─' * 60}{Colors.RESET}")
@@ -281,15 +285,20 @@ def run_watch_mode(
                     display_current_compact(current_data, delta)
                 elif analytics_mode and history_func:
                     # Full analytics mode
-                    print_watch_header(interval, countdown, session_duration + (interval - countdown), delta)
+                    print_watch_header(
+                        interval, countdown, session_duration + (interval - countdown), delta
+                    )
                     print()
                     from claude_watch.display.analytics import display_analytics
+
                     display_func(current_data)
                     history = history_func()
                     display_analytics(current_data, history, config or {})
                 else:
                     # Normal mode
-                    print_watch_header(interval, countdown, session_duration + (interval - countdown), delta)
+                    print_watch_header(
+                        interval, countdown, session_duration + (interval - countdown), delta
+                    )
                     print()
                     display_func(current_data)
 

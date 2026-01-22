@@ -22,9 +22,7 @@ def get_script_path() -> str:
     if script.exists():
         return str(script)
     # Fallback to which
-    result = subprocess.run(
-        ["which", "claude-watch"], capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(["which", "claude-watch"], capture_output=True, text=True, check=False)
     if result.returncode == 0:
         return result.stdout.strip()
     return str(Path(__file__).resolve())

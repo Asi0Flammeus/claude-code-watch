@@ -63,7 +63,7 @@ def send_notification_macos(title: str, message: str, urgency: str = "normal") -
 
 def send_notification_windows(title: str, message: str, urgency: str = "normal") -> bool:
     """Send notification on Windows using PowerShell toast."""
-    script = f'''
+    script = f"""
     [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
     [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 
@@ -82,7 +82,7 @@ def send_notification_windows(title: str, message: str, urgency: str = "normal")
     $xml.LoadXml($template)
     $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("claude-watch").Show($toast)
-    '''
+    """
     try:
         subprocess.run(
             ["powershell", "-Command", script],

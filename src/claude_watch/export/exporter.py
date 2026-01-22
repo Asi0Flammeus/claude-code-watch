@@ -37,9 +37,7 @@ def filter_history_by_days(history: list, days: Optional[int] = None) -> list:
     return [h for h in history if h.get("timestamp", "") >= cutoff_str]
 
 
-def export_csv(
-    history: list, days: Optional[int] = None, excel_bom: bool = False
-) -> str:
+def export_csv(history: list, days: Optional[int] = None, excel_bom: bool = False) -> str:
     """Export history to CSV format.
 
     Args:
@@ -70,11 +68,7 @@ def export_csv(
                 if entry.get("seven_day_sonnet") is not None
                 else ""
             ),
-            str(
-                entry.get("seven_day_opus", "")
-                if entry.get("seven_day_opus") is not None
-                else ""
-            ),
+            str(entry.get("seven_day_opus", "") if entry.get("seven_day_opus") is not None else ""),
         ]
         lines.append(",".join(row))
 

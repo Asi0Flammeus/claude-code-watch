@@ -23,9 +23,7 @@ def calculate_hourly_rate(history: list, hours: int = 4) -> Optional[dict]:
     cutoff_str = cutoff.isoformat()
 
     filtered = [
-        h
-        for h in history
-        if h.get("timestamp", "") > cutoff_str and h.get("five_hour") is not None
+        h for h in history if h.get("timestamp", "") > cutoff_str and h.get("five_hour") is not None
     ]
 
     if len(filtered) < 2:
@@ -48,9 +46,7 @@ def calculate_hourly_rate(history: list, hours: int = 4) -> Optional[dict]:
 
     rates = []
     for i in range(1, len(filtered)):
-        prev_ts = datetime.fromisoformat(
-            filtered[i - 1]["timestamp"].replace("Z", "+00:00")
-        )
+        prev_ts = datetime.fromisoformat(filtered[i - 1]["timestamp"].replace("Z", "+00:00"))
         curr_ts = datetime.fromisoformat(filtered[i]["timestamp"].replace("Z", "+00:00"))
         h_diff = (curr_ts - prev_ts).total_seconds() / 3600
         if h_diff > 0.05:
@@ -122,9 +118,7 @@ def calculate_forecast(data: dict, history: list, config: dict) -> dict:
             "hours_conservative": (
                 round(hours_conservative, 1) if hours_conservative < 100 else None
             ),
-            "hours_optimistic": (
-                round(hours_optimistic, 1) if hours_optimistic < 100 else None
-            ),
+            "hours_optimistic": (round(hours_optimistic, 1) if hours_optimistic < 100 else None),
             "data_quality": "good" if rate_info["data_points"] >= 5 else "limited",
         }
 
@@ -253,9 +247,7 @@ def display_forecast(data: dict, history: list, config: dict) -> None:
                 else:
                     print()
             else:
-                print(
-                    f"  Time to limit:   {Colors.GREEN}Not projected to hit limit{Colors.RESET}"
-                )
+                print(f"  Time to limit:   {Colors.GREEN}Not projected to hit limit{Colors.RESET}")
 
             quality = session.get("data_quality", "unknown")
             quality_icon = "+" if quality == "good" else "o"
@@ -277,9 +269,7 @@ def display_forecast(data: dict, history: list, config: dict) -> None:
 
             days_to_limit = weekly.get("days_to_limit")
             if days_to_limit:
-                print(
-                    f"  Days to limit:   {Colors.YELLOW}{days_to_limit:.1f} days{Colors.RESET}"
-                )
+                print(f"  Days to limit:   {Colors.YELLOW}{days_to_limit:.1f} days{Colors.RESET}")
         print()
 
     recommendations = forecast.get("recommendations", [])

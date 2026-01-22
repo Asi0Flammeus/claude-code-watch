@@ -42,9 +42,7 @@ SUBSCRIPTION_PLANS = {
 }
 
 # Re-export for backwards compatibility (deprecated, use pricing module)
-API_PRICING = {
-    model: (p.input, p.output, p.cache_read) for model, p in PRICING.items()
-}
+API_PRICING = {model: (p.input, p.output, p.cache_read) for model, p in PRICING.items()}
 
 
 def make_sparkline(

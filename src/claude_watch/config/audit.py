@@ -17,6 +17,7 @@ AUDIT_LOG_FILE = AUDIT_DIR / "audit.log"
 AUDIT_MAX_SIZE_MB = 10
 AUDIT_MAX_FILES = 5
 
+
 # Audit event types
 class AuditEvent:
     """Audit event type constants."""

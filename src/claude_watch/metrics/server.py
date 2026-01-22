@@ -79,32 +79,32 @@ def generate_metrics() -> str:
         # Session usage gauge
         f"# HELP {METRIC_SESSION_PERCENT} Current 5-hour session usage percentage",
         f"# TYPE {METRIC_SESSION_PERCENT} gauge",
-        f'{METRIC_SESSION_PERCENT} {snapshot["session_percent"]:.2f}',
+        f"{METRIC_SESSION_PERCENT} {snapshot['session_percent']:.2f}",
         "",
         # Weekly usage gauge
         f"# HELP {METRIC_WEEKLY_PERCENT} Current 7-day weekly usage percentage",
         f"# TYPE {METRIC_WEEKLY_PERCENT} gauge",
-        f'{METRIC_WEEKLY_PERCENT} {snapshot["weekly_percent"]:.2f}',
+        f"{METRIC_WEEKLY_PERCENT} {snapshot['weekly_percent']:.2f}",
         "",
         # API calls counter
         f"# HELP {METRIC_API_CALLS_TOTAL} Total number of API calls made",
         f"# TYPE {METRIC_API_CALLS_TOTAL} counter",
-        f'{METRIC_API_CALLS_TOTAL} {snapshot["api_calls"]}',
+        f"{METRIC_API_CALLS_TOTAL} {snapshot['api_calls']}",
         "",
         # Last fetch timestamp
         f"# HELP {METRIC_LAST_FETCH_TIMESTAMP} Timestamp of last successful fetch",
         f"# TYPE {METRIC_LAST_FETCH_TIMESTAMP} gauge",
-        f'{METRIC_LAST_FETCH_TIMESTAMP} {snapshot["last_fetch"]:.3f}',
+        f"{METRIC_LAST_FETCH_TIMESTAMP} {snapshot['last_fetch']:.3f}",
         "",
         # Fetch duration histogram (simplified as gauge for now)
         f"# HELP {METRIC_FETCH_DURATION_SECONDS} Duration of last API fetch in seconds",
         f"# TYPE {METRIC_FETCH_DURATION_SECONDS} gauge",
-        f'{METRIC_FETCH_DURATION_SECONDS} {snapshot["fetch_duration"]:.3f}',
+        f"{METRIC_FETCH_DURATION_SECONDS} {snapshot['fetch_duration']:.3f}",
         "",
         # Fetch errors counter
         f"# HELP {METRIC_FETCH_ERRORS_TOTAL} Total number of fetch errors",
         f"# TYPE {METRIC_FETCH_ERRORS_TOTAL} counter",
-        f'{METRIC_FETCH_ERRORS_TOTAL} {snapshot["fetch_errors"]}',
+        f"{METRIC_FETCH_ERRORS_TOTAL} {snapshot['fetch_errors']}",
         "",
     ]
 

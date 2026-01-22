@@ -568,6 +568,7 @@ def main() -> None:
 
     # Handle --config flag
     if args.config is not None:
+
         def _show_config():
             """Display current configuration."""
             from datetime import datetime
@@ -675,12 +676,15 @@ def main() -> None:
             print(json.dumps(data, indent=2))
         elif args.prompt:
             from claude_watch.display.prompt import format_prompt
+
             print(format_prompt(data, args.prompt, color=args.prompt_color))
         elif args.tmux:
             from claude_watch.display.tmux import format_tmux
+
             print(format_tmux(data))
         elif args.current:
             from claude_watch.display.watch import display_current_compact
+
             print()
             display_current_compact(data)
             print()
@@ -951,7 +955,13 @@ def main() -> None:
         return
 
     # Handle --sync standalone (without --tokens)
-    if args.sync and args.tokens is None and not args.tokens_stats and not args.tokens_status and not args.tokens_reset:
+    if (
+        args.sync
+        and args.tokens is None
+        and not args.tokens_stats
+        and not args.tokens_status
+        and not args.tokens_reset
+    ):
         from claude_watch.history.persistence import get_token_store
 
         store = get_token_store()
@@ -980,27 +990,31 @@ def main() -> None:
         print(f"  Total entries:    {status['total_entries']:,}")
         print(f"  Scanned files:    {status['scanned_files']}")
 
-        if status['file_size_bytes'] > 0:
-            size_kb = status['file_size_bytes'] / 1024
+        if status["file_size_bytes"] > 0:
+            size_kb = status["file_size_bytes"] / 1024
             if size_kb > 1024:
                 print(f"  File size:        {size_kb / 1024:.1f} MB")
             else:
                 print(f"  File size:        {size_kb:.1f} KB")
 
-        if status['last_scan']:
+        if status["last_scan"]:
             print(f"  Last scan:        {status['last_scan'][:19]}")
 
-        if status['date_range']['oldest']:
+        if status["date_range"]["oldest"]:
             print()
-            print(f"  Date range:       {status['date_range']['oldest'][:10]} to {status['date_range']['newest'][:10]}")
+            print(
+                f"  Date range:       {status['date_range']['oldest'][:10]} to {status['date_range']['newest'][:10]}"
+            )
 
-        if status['by_project']:
+        if status["by_project"]:
             print()
             print(f"  {Colors.DIM}Entries by project:{Colors.RESET}")
-            for proj, count in sorted(status['by_project'].items(), key=lambda x: -x[1])[:10]:
+            for proj, count in sorted(status["by_project"].items(), key=lambda x: -x[1])[:10]:
                 print(f"    {proj[:40]:<40} {count:>6}")
-            if len(status['by_project']) > 10:
-                print(f"    {Colors.DIM}... and {len(status['by_project']) - 10} more{Colors.RESET}")
+            if len(status["by_project"]) > 10:
+                print(
+                    f"    {Colors.DIM}... and {len(status['by_project']) - 10} more{Colors.RESET}"
+                )
 
         print()
         return
@@ -1090,6 +1104,7 @@ def main() -> None:
         history = load_history()
         if args.json:
             from claude_watch.display.analytics import display_analytics_json
+
             display_analytics_json(data, history, config)
         else:
             display_usage(data)
@@ -1102,7 +1117,9 @@ def main() -> None:
 
                 try:
                     if not args.quiet:
-                        print(f"{Colors.DIM}Fetching organization usage from Admin API...{Colors.RESET}")
+                        print(
+                            f"{Colors.DIM}Fetching organization usage from Admin API...{Colors.RESET}"
+                        )
                     admin_data = fetch_admin_usage(
                         admin_key=config["admin_api_key"],
                         timeout=args.timeout,

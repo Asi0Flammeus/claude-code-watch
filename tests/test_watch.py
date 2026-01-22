@@ -107,15 +107,15 @@ class TestFormatDelta:
 class TestClearScreen:
     """Tests for clear_screen function."""
 
-    @patch('os.system')
-    @patch('platform.system')
+    @patch("os.system")
+    @patch("platform.system")
     def test_windows_uses_cls(self, mock_platform, mock_system):
         mock_platform.return_value = "Windows"
         clear_screen()
         mock_system.assert_called_once_with("cls")
 
-    @patch('sys.stdout')
-    @patch('platform.system')
+    @patch("sys.stdout")
+    @patch("platform.system")
     def test_unix_uses_ansi(self, mock_platform, mock_stdout):
         mock_platform.return_value = "Linux"
         clear_screen()

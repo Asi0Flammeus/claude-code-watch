@@ -107,6 +107,7 @@ def get_trend_indicator(data: dict, history: Optional[list] = None) -> str:
     """
     if history is None:
         from claude_watch.history.storage import load_history
+
         history = load_history()
 
     five_hour = data.get("five_hour") or {}

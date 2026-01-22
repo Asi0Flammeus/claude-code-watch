@@ -167,7 +167,9 @@ def run_setup(
         else:
             config["auto_collect"] = False
             if not setup_systemd_timer_func:
-                print(f"{Colors.YELLOW}Automatic collection not available (function not provided){Colors.RESET}")
+                print(
+                    f"{Colors.YELLOW}Automatic collection not available (function not provided){Colors.RESET}"
+                )
     else:
         config["auto_collect"] = False
         # Disable existing timer if any
@@ -267,7 +269,9 @@ def run_setup(
         else:
             config["shell_completion_installed"] = False
             if not setup_shell_completion_func:
-                print(f"{Colors.YELLOW}Shell completion not available (function not provided){Colors.RESET}")
+                print(
+                    f"{Colors.YELLOW}Shell completion not available (function not provided){Colors.RESET}"
+                )
     else:
         print(f"{Colors.DIM}Skipping shell completion setup.{Colors.RESET}")
         config["shell_completion_installed"] = False

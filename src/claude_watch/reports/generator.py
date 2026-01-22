@@ -62,7 +62,10 @@ def generate_svg_chart(
     path = f"M {' L '.join(points)}"
 
     # Generate area fill path
-    area_points = points + [f"{padding + chart_width:.1f},{padding + chart_height:.1f}", f"{padding:.1f},{padding + chart_height:.1f}"]
+    area_points = points + [
+        f"{padding + chart_width:.1f},{padding + chart_height:.1f}",
+        f"{padding:.1f},{padding + chart_height:.1f}",
+    ]
     area_path = f"M {' L '.join(area_points)} Z"
 
     # X-axis labels
@@ -192,7 +195,9 @@ def generate_heatmap(
     day_labels = ""
     for i, day in enumerate(days):
         y = 20 + i * cell_height + cell_height / 2 + 4
-        day_labels += f'<text x="35" y="{y:.1f}" fill="#9ca3af" font-size="10" text-anchor="end">{day}</text>'
+        day_labels += (
+            f'<text x="35" y="{y:.1f}" fill="#9ca3af" font-size="10" text-anchor="end">{day}</text>'
+        )
 
     # Hour labels (every 6 hours)
     hour_labels = ""
@@ -223,7 +228,11 @@ def generate_cost_table(history: list, config: dict) -> str:
     for plan_id, plan_info in SUBSCRIPTION_PLANS.items():
         is_current = plan_id == plan_key
         highlight = "background: rgba(139, 92, 246, 0.2);" if is_current else ""
-        badge = '<span style="background: #8b5cf6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">Current</span>' if is_current else ""
+        badge = (
+            '<span style="background: #8b5cf6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">Current</span>'
+            if is_current
+            else ""
+        )
 
         rows += f'''
             <tr style="{highlight}">
@@ -235,7 +244,7 @@ def generate_cost_table(history: list, config: dict) -> str:
             </tr>
         '''
 
-    return f'''
+    return f"""
         <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
             <thead>
                 <tr style="background: #1f2937;">
@@ -250,7 +259,7 @@ def generate_cost_table(history: list, config: dict) -> str:
                 {rows}
             </tbody>
         </table>
-    '''
+    """
 
 
 def generate_recommendations(data: dict, history: list, config: dict) -> str:
@@ -271,74 +280,88 @@ def generate_recommendations(data: dict, history: list, config: dict) -> str:
 
     # Session recommendations
     if five_hour >= 90:
-        recommendations.append({
-            "severity": "critical",
-            "icon": "!",
-            "message": "Session limit nearly reached - wait for reset or reduce request intensity",
-            "color": "#ef4444"
-        })
+        recommendations.append(
+            {
+                "severity": "critical",
+                "icon": "!",
+                "message": "Session limit nearly reached - wait for reset or reduce request intensity",
+                "color": "#ef4444",
+            }
+        )
     elif five_hour >= 75:
-        recommendations.append({
-            "severity": "warning",
-            "icon": "*",
-            "message": "High session usage - consider pacing your requests",
-            "color": "#eab308"
-        })
+        recommendations.append(
+            {
+                "severity": "warning",
+                "icon": "*",
+                "message": "High session usage - consider pacing your requests",
+                "color": "#eab308",
+            }
+        )
 
     # Weekly recommendations
     if seven_day >= 85:
-        recommendations.append({
-            "severity": "warning",
-            "icon": "*",
-            "message": "Weekly limit approaching - prioritize critical tasks",
-            "color": "#eab308"
-        })
+        recommendations.append(
+            {
+                "severity": "warning",
+                "icon": "*",
+                "message": "Weekly limit approaching - prioritize critical tasks",
+                "color": "#eab308",
+            }
+        )
 
     # Pattern-based recommendations
     peaks = get_daily_peaks(history, "five_hour")
     if peaks["peak_hour"] is not None:
         hour_str = datetime.now().replace(hour=peaks["peak_hour"], minute=0).strftime("%-I %p")
-        recommendations.append({
-            "severity": "info",
-            "icon": "i",
-            "message": f"Peak usage hour: {hour_str} - schedule intensive work outside this time",
-            "color": "#8b5cf6"
-        })
+        recommendations.append(
+            {
+                "severity": "info",
+                "icon": "i",
+                "message": f"Peak usage hour: {hour_str} - schedule intensive work outside this time",
+                "color": "#8b5cf6",
+            }
+        )
 
     if peaks["peak_day"]:
-        recommendations.append({
-            "severity": "info",
-            "icon": "i",
-            "message": f"Peak usage day: {peaks['peak_day']} - distribute work more evenly",
-            "color": "#8b5cf6"
-        })
+        recommendations.append(
+            {
+                "severity": "info",
+                "icon": "i",
+                "message": f"Peak usage day: {peaks['peak_day']} - distribute work more evenly",
+                "color": "#8b5cf6",
+            }
+        )
 
     # Efficiency recommendation
     stats_7d = get_period_stats(history, 168, "five_hour")
     if stats_7d["count"] > 0 and stats_7d["avg"] < 30:
-        recommendations.append({
-            "severity": "success",
-            "icon": "+",
-            "message": "Usage is efficient - plenty of capacity available",
-            "color": "#22c55e"
-        })
+        recommendations.append(
+            {
+                "severity": "success",
+                "icon": "+",
+                "message": "Usage is efficient - plenty of capacity available",
+                "color": "#22c55e",
+            }
+        )
 
     if not recommendations:
-        recommendations.append({
-            "severity": "success",
-            "icon": "+",
-            "message": "Usage is within healthy limits",
-            "color": "#22c55e"
-        })
+        recommendations.append(
+            {
+                "severity": "success",
+                "icon": "+",
+                "message": "Usage is within healthy limits",
+                "color": "#22c55e",
+            }
+        )
 
     items = ""
     for rec in recommendations:
-        items += f'''
+        items += f"""
             <div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: rgba({_hex_to_rgb(rec["color"])}, 0.1); border-radius: 8px; margin-bottom: 8px;">
                 <span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: {rec["color"]}; color: white; border-radius: 50%; font-weight: bold; font-size: 14px;">{rec["icon"]}</span>
                 <span style="color: #f3f4f6;">{rec["message"]}</span>
             </div>
-        '''
+        """
 
     return items
 
@@ -404,7 +427,7 @@ def generate_report(
         width=600,
         height=200,
         color="#8b5cf6",
-        title="Session Usage (5-hour window)"
+        title="Session Usage (5-hour window)",
     )
 
     weekly_chart = generate_svg_chart(
@@ -413,7 +436,7 @@ def generate_report(
         width=600,
         height=200,
         color="#06b6d4",
-        title="Weekly Usage (7-day window)"
+        title="Weekly Usage (7-day window)",
     )
 
     heatmap = generate_heatmap(history, "five_hour")
@@ -427,7 +450,7 @@ def generate_report(
     # Stats cards
     stats_html = ""
     if stats_session["count"] > 0:
-        stats_html = f'''
+        stats_html = f"""
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px;">
                 <div style="background: #1f2937; padding: 16px; border-radius: 12px; text-align: center;">
                     <div style="color: #9ca3af; font-size: 14px;">Min Session</div>
@@ -446,9 +469,9 @@ def generate_report(
                     <div style="color: #f3f4f6; font-size: 24px; font-weight: bold;">{stats_session["count"]}</div>
                 </div>
             </div>
-        '''
+        """
 
-    html = f'''<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -562,12 +585,12 @@ def generate_report(
                 <div class="current-usage">
                     <div class="usage-item">
                         <div class="label">Session Usage</div>
-                        <div class="value {'red' if five_hour >= 90 else 'yellow' if five_hour >= 75 else 'green'}">{five_hour:.0f}%</div>
+                        <div class="value {"red" if five_hour >= 90 else "yellow" if five_hour >= 75 else "green"}">{five_hour:.0f}%</div>
                         <div class="label">{f"Resets at {reset_str}" if reset_str else ""}</div>
                     </div>
                     <div class="usage-item">
                         <div class="label">Weekly Usage</div>
-                        <div class="value {'red' if seven_day >= 85 else 'yellow' if seven_day >= 70 else 'green'}">{seven_day:.0f}%</div>
+                        <div class="value {"red" if seven_day >= 85 else "yellow" if seven_day >= 70 else "green"}">{seven_day:.0f}%</div>
                     </div>
                     <div class="usage-item">
                         <div class="label">Session Remaining</div>
@@ -626,7 +649,7 @@ def generate_report(
         </div>
     </div>
 </body>
-</html>'''
+</html>"""
 
     return html
 

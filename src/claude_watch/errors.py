@@ -106,28 +106,21 @@ class AuthenticationExpiredError(ClaudeWatchError):
     """OAuth token has expired and needs renewal."""
 
     code = ExitCode.AUTH_EXPIRED
-    suggestion = (
-        "Re-authenticate with Claude Code by running 'claude' and signing in again."
-    )
+    suggestion = "Re-authenticate with Claude Code by running 'claude' and signing in again."
 
 
 class AuthenticationInvalidError(ClaudeWatchError):
     """OAuth token format is invalid."""
 
     code = ExitCode.AUTH_INVALID
-    suggestion = (
-        "Your credentials appear corrupted. "
-        "Try running 'claude' to re-authenticate."
-    )
+    suggestion = "Your credentials appear corrupted. Try running 'claude' to re-authenticate."
 
 
 class AuthenticationMissingError(ClaudeWatchError):
     """No credentials found."""
 
     code = ExitCode.AUTH_MISSING
-    suggestion = (
-        "Run 'claude' to install and authenticate with Claude Code first."
-    )
+    suggestion = "Run 'claude' to install and authenticate with Claude Code first."
 
 
 class PermissionDeniedError(ClaudeWatchError):
@@ -154,9 +147,7 @@ class NetworkTimeoutError(ClaudeWatchError):
     """Request timed out."""
 
     code = ExitCode.NETWORK_TIMEOUT
-    suggestion = (
-        "The request timed out. Try again, or increase timeout with --timeout flag."
-    )
+    suggestion = "The request timed out. Try again, or increase timeout with --timeout flag."
 
 
 class NetworkDNSError(ClaudeWatchError):
@@ -192,9 +183,7 @@ class RateLimitError(ClaudeWatchError):
     """API rate limit exceeded."""
 
     code = ExitCode.API_RATE_LIMIT
-    suggestion = (
-        "You've hit the API rate limit. Wait a few minutes before trying again."
-    )
+    suggestion = "You've hit the API rate limit. Wait a few minutes before trying again."
 
 
 class ServerError(ClaudeWatchError):
@@ -202,8 +191,7 @@ class ServerError(ClaudeWatchError):
 
     code = ExitCode.API_SERVER_ERROR
     suggestion = (
-        "The Anthropic API is experiencing issues. "
-        "Check status.anthropic.com and try again later."
+        "The Anthropic API is experiencing issues. Check status.anthropic.com and try again later."
     )
 
 
@@ -211,9 +199,7 @@ class MaintenanceError(ClaudeWatchError):
     """API is under maintenance."""
 
     code = ExitCode.API_MAINTENANCE
-    suggestion = (
-        "The API is currently under maintenance. Try again in a few minutes."
-    )
+    suggestion = "The API is currently under maintenance. Try again in a few minutes."
 
 
 # Config/Setup Errors
@@ -248,8 +234,7 @@ class FilePermissionError(ClaudeWatchError):
 
     code = ExitCode.FILE_PERMISSION
     suggestion = (
-        "Check file permissions. "
-        "Credentials should have 600 permissions (owner read/write only)."
+        "Check file permissions. Credentials should have 600 permissions (owner read/write only)."
     )
 
 
@@ -257,10 +242,7 @@ class DataCorruptError(ClaudeWatchError):
     """Data file is corrupted."""
 
     code = ExitCode.DATA_CORRUPT
-    suggestion = (
-        "The data file appears corrupted. "
-        "Try deleting it and letting it regenerate."
-    )
+    suggestion = "The data file appears corrupted. Try deleting it and letting it regenerate."
 
 
 def categorize_http_error(status_code: int, reason: str = "") -> ClaudeWatchError:
@@ -278,25 +260,17 @@ def categorize_http_error(status_code: int, reason: str = "") -> ClaudeWatchErro
         message += f" {reason}"
 
     if status_code == 401:
-        return AuthenticationExpiredError(
-            "Authentication failed. Your session may have expired."
-        )
+        return AuthenticationExpiredError("Authentication failed. Your session may have expired.")
     elif status_code == 403:
         return PermissionDeniedError(
             "Access denied. You may not have permission for this operation."
         )
     elif status_code == 429:
-        return RateLimitError(
-            "Rate limit exceeded. Too many requests."
-        )
+        return RateLimitError("Rate limit exceeded. Too many requests.")
     elif status_code == 503:
-        return MaintenanceError(
-            "Service temporarily unavailable."
-        )
+        return MaintenanceError("Service temporarily unavailable.")
     elif status_code >= 500:
-        return ServerError(
-            f"Server error: {status_code} {reason}"
-        )
+        return ServerError(f"Server error: {status_code} {reason}")
     else:
         return APIError(message)
 

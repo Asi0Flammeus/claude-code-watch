@@ -132,9 +132,7 @@ def parse_conversation_file(path: Path) -> list[UsageEntry]:
                     if usage:
                         entries.append(usage)
                 except json.JSONDecodeError as e:
-                    logger.debug(
-                        "Skipping malformed JSON at %s:%d: %s", path, line_num, e
-                    )
+                    logger.debug("Skipping malformed JSON at %s:%d: %s", path, line_num, e)
                     continue
 
     except OSError as e:

@@ -104,7 +104,10 @@ def detect_installation_method() -> Tuple[Optional[str], Optional[str]]:
                             capture_output=True,
                             text=True,
                             timeout=10,
-                            env={**subprocess.os.environ, "PATH": subprocess.os.environ.get("PATH", "")},
+                            env={
+                                **subprocess.os.environ,
+                                "PATH": subprocess.os.environ.get("PATH", ""),
+                            },
                         )
                         if pip_result.returncode == 0:
                             for pip_line in pip_result.stdout.splitlines():
@@ -120,6 +123,7 @@ def detect_installation_method() -> Tuple[Optional[str], Optional[str]]:
                     # Also check via importlib for editable installs
                     try:
                         import importlib.util
+
                         spec = importlib.util.find_spec("claude_watch")
                         if spec and spec.origin:
                             origin = str(spec.origin)
@@ -152,6 +156,7 @@ def detect_installation_method() -> Tuple[Optional[str], Optional[str]]:
     # Check if installed via pip (in site-packages)
     try:
         import importlib.util
+
         spec = importlib.util.find_spec("claude_watch")
         if spec and spec.origin:
             origin = str(spec.origin)
@@ -276,7 +281,9 @@ def check_for_update(current_version: str, quiet: bool = False) -> Optional[dict
     latest = fetch_latest_version(current_version)
     if latest is None:
         if not quiet:
-            print(f"{Colors.YELLOW}Could not check for updates (GitHub unreachable or no releases){Colors.RESET}")
+            print(
+                f"{Colors.YELLOW}Could not check for updates (GitHub unreachable or no releases){Colors.RESET}"
+            )
         return None
 
     update_available = compare_versions(current_version, latest) < 0
@@ -326,7 +333,9 @@ def run_update(current_version: str, check_only: bool = False, force: bool = Fal
     if force and method == "uv-editable" and source_path:
         print(f"{Colors.CYAN}Force reinstall requested{Colors.RESET}")
         print()
-        print(f"Pulling latest changes and reinstalling from {Colors.CYAN}{source_path}{Colors.RESET}...")
+        print(
+            f"Pulling latest changes and reinstalling from {Colors.CYAN}{source_path}{Colors.RESET}..."
+        )
         print()
 
         success, message = run_upgrade(method, source_path)
@@ -369,7 +378,9 @@ def run_update(current_version: str, check_only: bool = False, force: bool = Fal
         return 1
 
     if method == "uv-editable" and source_path:
-        print(f"Pulling latest changes and reinstalling from {Colors.CYAN}{source_path}{Colors.RESET}...")
+        print(
+            f"Pulling latest changes and reinstalling from {Colors.CYAN}{source_path}{Colors.RESET}..."
+        )
     else:
         print(f"Updating via {Colors.CYAN}{method}{Colors.RESET}...")
     print()
@@ -379,7 +390,9 @@ def run_update(current_version: str, check_only: bool = False, force: bool = Fal
     if success:
         print(f"{Colors.GREEN}✓ {message}{Colors.RESET}")
         print()
-        print(f"Restart your shell or run {Colors.CYAN}claude-watch --version{Colors.RESET} to verify.")
+        print(
+            f"Restart your shell or run {Colors.CYAN}claude-watch --version{Colors.RESET} to verify."
+        )
         return 0
     else:
         print(f"{Colors.RED}✗ {message}{Colors.RESET}")

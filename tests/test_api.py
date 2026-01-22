@@ -164,8 +164,12 @@ class TestGetCredentials:
 
         # Simulate keychain returning None (not found)
         with patch.object(credentials_module.platform, "system", return_value="Darwin"):
-            with patch.object(credentials_module, "get_macos_keychain_credentials", return_value=None):
-                with patch.object(credentials_module, "get_credentials_path", return_value=creds_file):
+            with patch.object(
+                credentials_module, "get_macos_keychain_credentials", return_value=None
+            ):
+                with patch.object(
+                    credentials_module, "get_credentials_path", return_value=creds_file
+                ):
                     result = get_credentials()
 
         assert result["claudeAiOauth"]["accessToken"] == "test-access-token-12345"
@@ -200,7 +204,9 @@ class TestGetAccessToken:
 
     def test_missing_token(self, credentials_missing_token):
         """Test error when access token is missing."""
-        with patch.object(credentials_module, "get_credentials", return_value=credentials_missing_token):
+        with patch.object(
+            credentials_module, "get_credentials", return_value=credentials_missing_token
+        ):
             with pytest.raises(ValueError) as exc_info:
                 get_access_token()
 

@@ -144,7 +144,9 @@ def mock_fetch_usage(usage_normal):
 @pytest.fixture
 def mock_credentials(credentials_valid):
     """Mock get_credentials to return valid credentials."""
-    with patch("claude_watch.config.credentials.get_credentials", return_value=credentials_valid) as mock:
+    with patch(
+        "claude_watch.config.credentials.get_credentials", return_value=credentials_valid
+    ) as mock:
         yield mock
 
 

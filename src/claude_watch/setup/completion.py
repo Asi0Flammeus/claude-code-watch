@@ -113,7 +113,9 @@ def setup_shell_completion(shell: Optional[str] = None) -> bool:
 
     if not completions_source:
         print(f"{Colors.YELLOW}Could not find completion scripts.{Colors.RESET}")
-        print(f"{Colors.DIM}You can manually install from the project's completions/ directory.{Colors.RESET}")
+        print(
+            f"{Colors.DIM}You can manually install from the project's completions/ directory.{Colors.RESET}"
+        )
         return False
 
     config = SHELL_CONFIGS.get(shell)
@@ -144,7 +146,9 @@ def setup_shell_completion(shell: Optional[str] = None) -> bool:
                 alt_dest = bash_completion_dir / "claude-watch"
                 if os.access(str(bash_completion_dir), os.W_OK):
                     shutil.copy2(source_file, alt_dest)
-                    print(f"{Colors.DIM}Also copied to system completions: {alt_dest}{Colors.RESET}")
+                    print(
+                        f"{Colors.DIM}Also copied to system completions: {alt_dest}{Colors.RESET}"
+                    )
                     return True
 
             # Add source line to rc file
@@ -157,7 +161,9 @@ def setup_shell_completion(shell: Optional[str] = None) -> bool:
                             f.write(source_line)
                         print(f"{Colors.GREEN}✓ Added source line to {rc_file}{Colors.RESET}")
                     else:
-                        print(f"{Colors.DIM}Completion already configured in {rc_file}{Colors.RESET}")
+                        print(
+                            f"{Colors.DIM}Completion already configured in {rc_file}{Colors.RESET}"
+                        )
                     break
 
         print(f"{Colors.DIM}Restart your shell or run: source {dest_file}{Colors.RESET}")
@@ -165,7 +171,9 @@ def setup_shell_completion(shell: Optional[str] = None) -> bool:
 
     except PermissionError:
         print(f"{Colors.YELLOW}Permission denied writing to {dest_dir}{Colors.RESET}")
-        print(f"{Colors.DIM}You can manually copy {source_file} to your completions directory.{Colors.RESET}")
+        print(
+            f"{Colors.DIM}You can manually copy {source_file} to your completions directory.{Colors.RESET}"
+        )
         return False
     except Exception as e:
         print(f"{Colors.RED}Error setting up completion: {e}{Colors.RESET}")

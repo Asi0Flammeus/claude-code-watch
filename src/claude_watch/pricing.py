@@ -13,6 +13,7 @@ class ModelPricing(NamedTuple):
     cache_read: float
     cache_creation: float
 
+
 # Pricing per 1M tokens (as of 2025)
 # Format: (input, output, cache_read, cache_creation)
 PRICING: dict[str, ModelPricing] = {

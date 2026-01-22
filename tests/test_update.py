@@ -159,6 +159,7 @@ class TestDetectInstallationMethod:
 
     def test_detects_pipx_installation(self):
         """Test detecting pipx installation."""
+
         def side_effect(cmd, **kwargs):
             result = MagicMock()
             if cmd[0] == "uv":
@@ -269,7 +270,9 @@ class TestFetchLatestVersion:
 
     def test_network_error(self):
         """Test network error returns None."""
-        with patch("claude_watch.update.checker.urlopen", side_effect=URLError("Connection refused")):
+        with patch(
+            "claude_watch.update.checker.urlopen", side_effect=URLError("Connection refused")
+        ):
             result = fetch_latest_version()
 
         assert result is None
@@ -370,7 +373,9 @@ class TestCheckForUpdate:
         """Test check_for_update returns dict or None."""
         with patch("claude_watch.update.checker.fetch_latest_version", return_value="0.2.0"):
             # detect_installation_method now returns tuple (method, source_path)
-            with patch("claude_watch.update.checker.detect_installation_method", return_value=("pip", None)):
+            with patch(
+                "claude_watch.update.checker.detect_installation_method", return_value=("pip", None)
+            ):
                 result = check_for_update("0.1.0", quiet=True)
 
         assert result is not None

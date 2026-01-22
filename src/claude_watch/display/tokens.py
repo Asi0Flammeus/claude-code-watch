@@ -86,7 +86,9 @@ def display_token_usage(data: dict) -> None:
     days = period.get("days", 7)
 
     print()
-    print(f"{Colors.BOLD}{Colors.CYAN}=== Claude Code Token Usage (Last {days} Days) ==={Colors.RESET}")
+    print(
+        f"{Colors.BOLD}{Colors.CYAN}=== Claude Code Token Usage (Last {days} Days) ==={Colors.RESET}"
+    )
     print()
 
     # Totals section
@@ -101,9 +103,13 @@ def display_token_usage(data: dict) -> None:
 
     print(f"  {'Input tokens:':<24} {Colors.GREEN}{_format_number(input_tok):>14}{Colors.RESET}")
     print(f"  {'Output tokens:':<24} {Colors.GREEN}{_format_number(output_tok):>14}{Colors.RESET}")
-    print(f"  {'Cache read tokens:':<24} {Colors.CYAN}{_format_number(cache_read_tok):>14}{Colors.RESET}")
+    print(
+        f"  {'Cache read tokens:':<24} {Colors.CYAN}{_format_number(cache_read_tok):>14}{Colors.RESET}"
+    )
     if cache_write_tok > 0:
-        print(f"  {'Cache write tokens:':<24} {Colors.CYAN}{_format_number(cache_write_tok):>14}{Colors.RESET}")
+        print(
+            f"  {'Cache write tokens:':<24} {Colors.CYAN}{_format_number(cache_write_tok):>14}{Colors.RESET}"
+        )
     print(f"  {'Messages:':<24} {Colors.WHITE}{_format_number(messages):>14}{Colors.RESET}")
     print()
 
@@ -164,9 +170,7 @@ def display_token_usage(data: dict) -> None:
                 model_color = Colors.WHITE
 
             display_name = _get_model_display_name(model_id)
-            print(
-                f"  {model_color}{display_name}{Colors.RESET}:"
-            )
+            print(f"  {model_color}{display_name}{Colors.RESET}:")
             print(
                 f"    {_format_number(model_input)} in / {_format_number(model_output)} out"
                 f" / {_format_number(model_cache)} cache"
@@ -192,8 +196,12 @@ def display_token_usage(data: dict) -> None:
 
     # Calculate hypothetical costs at each pricing tier
     opus_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-opus-4-5-20251101")
-    sonnet_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-sonnet-4-5-20250929")
-    haiku_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-haiku-4-5-20251101")
+    sonnet_cost = calculate_cost(
+        input_tok, output_tok, cache_read_tok, 0, "claude-sonnet-4-5-20250929"
+    )
+    haiku_cost = calculate_cost(
+        input_tok, output_tok, cache_read_tok, 0, "claude-haiku-4-5-20251101"
+    )
 
     print(f"  {'At Opus pricing:':<24} {Colors.MAGENTA}${opus_cost:>10,.2f}{Colors.RESET}")
     print(f"  {'At Sonnet pricing:':<24} {Colors.CYAN}${sonnet_cost:>10,.2f}{Colors.RESET}")
@@ -255,7 +263,9 @@ def display_token_usage_json(data: dict) -> None:
 
     # Calculate costs
     opus_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-opus-4-5-20251101")
-    sonnet_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-sonnet-4-5-20250929")
+    sonnet_cost = calculate_cost(
+        input_tok, output_tok, cache_read_tok, 0, "claude-sonnet-4-5-20250929"
+    )
 
     # Calculate actual cost if model breakdown available
     actual_cost = 0.0
@@ -298,7 +308,7 @@ def _calc_stats(values: list[int | float]) -> tuple[float, float]:
     if n < 2:
         return mean, 0.0
     variance = sum((x - mean) ** 2 for x in values) / (n - 1)
-    return mean, variance ** 0.5
+    return mean, variance**0.5
 
 
 def _fmt_compact(n: float) -> str:
@@ -460,7 +470,9 @@ def display_token_stats(data: dict) -> None:
         m_cache = [m["cache"] for m in monthly.values()]
         m_msgs = [m["msgs"] for m in monthly.values()]
 
-        print(f"{Colors.BOLD}{Colors.WHITE}Monthly Statistics ({len(monthly)} months){Colors.RESET}")
+        print(
+            f"{Colors.BOLD}{Colors.WHITE}Monthly Statistics ({len(monthly)} months){Colors.RESET}"
+        )
         print()
         print_stat_row("Input tokens:", m_input, Colors.GREEN)
         print_stat_row("Output tokens:", m_output, Colors.GREEN)

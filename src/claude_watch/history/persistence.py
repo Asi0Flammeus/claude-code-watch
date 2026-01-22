@@ -560,10 +560,7 @@ class TokenStore:
         return {
             "period": {"days": stats["period_days"]},
             "totals": stats["totals"],
-            "daily": [
-                {"date": date, **usage}
-                for date, usage in stats["daily"].items()
-            ],
+            "daily": [{"date": date, **usage} for date, usage in stats["daily"].items()],
             "by_model": stats["by_model"],
             "estimated_cost": stats["estimated_cost"],
         }
@@ -578,9 +575,7 @@ class TokenStore:
 
         # Calculate date range
         timestamps = [
-            _parse_timestamp(e["timestamp"])
-            for e in entries
-            if _parse_timestamp(e["timestamp"])
+            _parse_timestamp(e["timestamp"]) for e in entries if _parse_timestamp(e["timestamp"])
         ]
 
         oldest = min(timestamps).isoformat() if timestamps else None

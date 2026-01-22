@@ -136,18 +136,20 @@ class TestTokenStore:
         store = TokenStore(temp_store_path)
 
         # Manually add some data
-        store._data["entries"].append({
-            "hash": "test123456789abc",
-            "timestamp": "2025-01-15T10:30:00Z",
-            "session_id": "test-session",
-            "project": "test-project",
-            "model": "claude-opus-4-5-20251101",
-            "input_tokens": 100,
-            "output_tokens": 50,
-            "cache_read_tokens": 25,
-            "cache_creation_tokens": 10,
-            "source_file": "test.jsonl",
-        })
+        store._data["entries"].append(
+            {
+                "hash": "test123456789abc",
+                "timestamp": "2025-01-15T10:30:00Z",
+                "session_id": "test-session",
+                "project": "test-project",
+                "model": "claude-opus-4-5-20251101",
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "cache_read_tokens": 25,
+                "cache_creation_tokens": 10,
+                "source_file": "test.jsonl",
+            }
+        )
         store.save()
 
         assert len(store._data["entries"]) == 1
@@ -160,18 +162,20 @@ class TestTokenStore:
         """Test that data persists when creating new store instance."""
         # Create store and add data
         store1 = TokenStore(temp_store_path)
-        store1._data["entries"].append({
-            "hash": "test123456789abc",
-            "timestamp": "2025-01-15T10:30:00Z",
-            "session_id": "test-session",
-            "project": "test-project",
-            "model": "claude-opus-4-5-20251101",
-            "input_tokens": 100,
-            "output_tokens": 50,
-            "cache_read_tokens": 25,
-            "cache_creation_tokens": 10,
-            "source_file": "test.jsonl",
-        })
+        store1._data["entries"].append(
+            {
+                "hash": "test123456789abc",
+                "timestamp": "2025-01-15T10:30:00Z",
+                "session_id": "test-session",
+                "project": "test-project",
+                "model": "claude-opus-4-5-20251101",
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "cache_read_tokens": 25,
+                "cache_creation_tokens": 10,
+                "source_file": "test.jsonl",
+            }
+        )
         store1.save()
 
         # Create new instance and verify data
