@@ -4,11 +4,12 @@ Provides functions for installing and configuring shell tab completion
 for bash, zsh, and fish shells.
 """
 
+from __future__ import annotations
+
 import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 from claude_watch.display.colors import Colors
 
@@ -36,7 +37,7 @@ def detect_shell() -> str:
     return "bash"  # Default to bash
 
 
-def get_completion_source_path() -> Optional[Path]:
+def get_completion_source_path() -> Path | None:
     """Find the completions directory from the package installation.
 
     Returns:
@@ -97,7 +98,7 @@ SHELL_CONFIGS: dict[str, dict] = {
 }
 
 
-def setup_shell_completion(shell: Optional[str] = None) -> bool:
+def setup_shell_completion(shell: str | None = None) -> bool:
     """Set up shell completion for the user's shell.
 
     Args:

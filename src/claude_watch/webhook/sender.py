@@ -1,5 +1,7 @@
 """Webhook sender with support for Slack, Discord, and generic HTTP webhooks."""
 
+from __future__ import annotations
+
 import hashlib
 import hmac
 import json
@@ -7,7 +9,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 WebhookType = Literal["slack", "discord", "generic"]
 
@@ -15,7 +17,7 @@ WebhookType = Literal["slack", "discord", "generic"]
 class WebhookError(Exception):
     """Exception raised when webhook sending fails."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
         self.status_code = status_code
 
@@ -225,8 +227,8 @@ def send_webhook(
     url: str,
     data: dict,
     threshold: int,
-    webhook_type: Optional[WebhookType] = None,
-    secret: Optional[str] = None,
+    webhook_type: WebhookType | None = None,
+    secret: str | None = None,
     timeout: int = 10,
 ) -> bool:
     """Send webhook notification.

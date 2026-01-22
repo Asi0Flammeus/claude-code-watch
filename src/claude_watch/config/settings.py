@@ -4,11 +4,13 @@ Provides functions for loading, saving, validating, and migrating
 configuration files.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Tuple, Union
 
 # File paths
 CONFIG_FILE = Path.home() / ".claude" / ".usage_config.json"
@@ -45,7 +47,7 @@ CONFIG_VERSION = 3
 # validator_func takes value and returns (is_valid, error_message)
 ValidatorFunc = Callable[[Union[str, int, float, bool, None]], Tuple[bool, str]]
 
-CONFIG_SCHEMA: dict[str, tuple[tuple, bool, Optional[ValidatorFunc]]] = {
+CONFIG_SCHEMA: dict[str, tuple[tuple, bool, ValidatorFunc | None]] = {
     "admin_api_key": (
         (str, type(None)),
         False,
@@ -88,7 +90,7 @@ CONFIG_SCHEMA: dict[str, tuple[tuple, bool, Optional[ValidatorFunc]]] = {
 }
 
 
-def validate_config(config: dict) -> List[str]:
+def validate_config(config: dict) -> list[str]:
     """Validate configuration against schema.
 
     Args:
@@ -134,7 +136,7 @@ def validate_config(config: dict) -> List[str]:
     return errors
 
 
-def migrate_config(config: dict) -> Tuple[dict, bool]:
+def migrate_config(config: dict) -> tuple[dict, bool]:
     """Migrate old config formats to the current schema.
 
     Args:
@@ -187,7 +189,7 @@ def migrate_config(config: dict) -> Tuple[dict, bool]:
 def load_config(
     validate: bool = True,
     auto_migrate: bool = True,
-    config_file: Optional[Path] = None,
+    config_file: Path | None = None,
     silent: bool = False,
 ) -> dict:
     """Load configuration from file.
@@ -237,7 +239,7 @@ def load_config(
         return DEFAULT_CONFIG.copy()
 
 
-def save_config(config: dict, config_file: Optional[Path] = None) -> None:
+def save_config(config: dict, config_file: Path | None = None) -> None:
     """Save configuration to file.
 
     Args:
@@ -255,7 +257,7 @@ def save_config(config: dict, config_file: Optional[Path] = None) -> None:
     os.chmod(config_file, 0o600)
 
 
-def reset_config(config_file: Optional[Path] = None) -> None:
+def reset_config(config_file: Path | None = None) -> None:
     """Reset configuration to default values.
 
     Args:

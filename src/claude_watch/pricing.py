@@ -4,6 +4,8 @@ This module provides a single source of truth for model pricing,
 used across all cost calculation functions in the codebase.
 """
 
+from __future__ import annotations
+
 from typing import NamedTuple
 
 
