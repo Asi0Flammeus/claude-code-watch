@@ -2,6 +2,8 @@
 Tests for analytics calculation functions.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 
 import pytest

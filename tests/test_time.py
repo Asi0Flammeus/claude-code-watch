@@ -2,6 +2,8 @@
 Tests for time parsing and formatting functions.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 
 from claude_watch.utils.time import (

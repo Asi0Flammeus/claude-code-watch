@@ -8,6 +8,8 @@ Tests cover:
 - check_for_update() - update availability check
 """
 
+from __future__ import annotations
+
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 

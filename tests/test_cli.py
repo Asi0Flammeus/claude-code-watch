@@ -4,6 +4,8 @@ Tests for CLI argument parsing and command execution.
 These are integration tests that verify CLI behavior end-to-end.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import subprocess

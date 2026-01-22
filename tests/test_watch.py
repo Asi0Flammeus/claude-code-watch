@@ -1,5 +1,7 @@
 """Tests for watch mode display functions."""
 
+from __future__ import annotations
+
 import platform
 from unittest.mock import patch
 

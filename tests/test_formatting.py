@@ -2,6 +2,8 @@
 Tests for display formatting functions.
 """
 
+from __future__ import annotations
+
 from claude_watch.display.analytics import format_trend, make_sparkline
 from claude_watch.display.colors import Colors
 from claude_watch.display.progress import (

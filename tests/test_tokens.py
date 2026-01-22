@@ -1,5 +1,7 @@
 """Tests for token extraction from Claude Code conversation logs."""
 
+from __future__ import annotations
+
 from claude_watch.history.tokens import _extract_usage_from_message, _parse_timestamp
 
 

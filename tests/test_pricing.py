@@ -1,5 +1,7 @@
 """Tests for the centralized pricing module."""
 
+from __future__ import annotations
+
 import pytest
 
 from claude_watch.pricing import PRICING, ModelPricing, calculate_cost

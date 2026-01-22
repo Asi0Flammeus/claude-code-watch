@@ -1,5 +1,7 @@
 """Tests for tmux status bar output formatting."""
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 
 import pytest

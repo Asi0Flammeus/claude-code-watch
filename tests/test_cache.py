@@ -8,6 +8,8 @@ Tests cover:
 - fetch_usage_cached() - fetching with caching and error handling
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch

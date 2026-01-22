@@ -4,6 +4,8 @@ Pytest fixtures for claude-watch tests.
 Test imports use the src/claude_watch/ package.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
