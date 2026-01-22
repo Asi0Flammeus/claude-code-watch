@@ -203,6 +203,17 @@ Setup:
         help="Show usage forecast with projections and recommendations.",
     )
 
+    # Token usage arguments
+    parser.add_argument(
+        "--tokens",
+        "-t",
+        nargs="?",
+        const=7,
+        type=int,
+        metavar="DAYS",
+        help="Show Claude Code token usage from conversation logs. DAYS: lookback period (default: 7).",
+    )
+
     # Notification arguments
     parser.add_argument(
         "--notify",
@@ -911,6 +922,34 @@ def main() -> None:
         else:
             display_usage(data)
             display_forecast(data, history, config)
+        return
+
+    # Handle --tokens flag
+    if args.tokens is not None:
+        from claude_watch.display.tokens import display_token_usage, display_token_usage_json
+        from claude_watch.history.tokens import get_token_usage
+
+        days = args.tokens
+        if not args.quiet:
+            print(f"{Colors.DIM}Scanning Claude Code conversation logs...{Colors.RESET}")
+
+        token_data = get_token_usage(days=days)
+
+        # Transform data structure to match display expectations
+        display_data = {
+            "period": {"days": token_data["period_days"]},
+            "totals": token_data["totals"],
+            "daily": [
+                {"date": date, **usage}
+                for date, usage in token_data["daily"].items()
+            ],
+            "by_model": token_data["by_model"],
+        }
+
+        if args.json:
+            display_token_usage_json(display_data)
+        else:
+            display_token_usage(display_data)
         return
 
     # Handle --report flag
