@@ -8,23 +8,11 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
-
-# Pricing per 1M tokens (as of 2025)
-PRICING_OPUS_INPUT = 15.0
-PRICING_OPUS_OUTPUT = 75.0
-PRICING_OPUS_CACHE_READ = 1.50
-PRICING_OPUS_CACHE_CREATION = 18.75  # 1.25x input price
-
-PRICING_SONNET_INPUT = 3.0
-PRICING_SONNET_OUTPUT = 15.0
-PRICING_SONNET_CACHE_READ = 0.30
-PRICING_SONNET_CACHE_CREATION = 3.75  # 1.25x input price
 
 
 class UsageEntry(TypedDict):
@@ -175,207 +163,14 @@ def _parse_timestamp(timestamp: str) -> datetime | None:
         return None
 
 
-def _calculate_cost(
-    input_tokens: int,
-    output_tokens: int,
-    cache_read_tokens: int,
-    cache_creation_tokens: int,
-    input_price: float,
-    output_price: float,
-    cache_read_price: float,
-    cache_creation_price: float,
-) -> float:
-    """Calculate cost based on token counts and pricing.
-
-    Args:
-        input_tokens: Non-cached input tokens.
-        output_tokens: Output tokens.
-        cache_read_tokens: Cached input tokens read.
-        cache_creation_tokens: Tokens written to cache.
-        input_price: Price per 1M input tokens.
-        output_price: Price per 1M output tokens.
-        cache_read_price: Price per 1M cache read tokens.
-        cache_creation_price: Price per 1M cache creation tokens.
-
-    Returns:
-        Estimated cost in dollars.
-    """
-    return (
-        (input_tokens / 1_000_000) * input_price
-        + (output_tokens / 1_000_000) * output_price
-        + (cache_read_tokens / 1_000_000) * cache_read_price
-        + (cache_creation_tokens / 1_000_000) * cache_creation_price
-    )
-
-
-def get_token_usage(days: int = 7) -> TokenUsageReport:
-    """Get aggregated token usage for the specified period.
-
-    Recursively scans ~/.claude/projects/ for JSONL files and aggregates
-    token usage from assistant messages.
-
-    Args:
-        days: Number of days to look back (default: 7).
-
-    Returns:
-        TokenUsageReport with totals, daily breakdown, model breakdown,
-        session breakdown, and estimated costs.
-    """
-    projects_dir = get_claude_projects_dir()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-
-    # Aggregation containers
-    totals = {
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cache_read_tokens": 0,
-        "cache_creation_tokens": 0,
-        "messages": 0,
-    }
-    sessions: set[str] = set()
-    daily: dict[str, dict[str, int]] = defaultdict(
-        lambda: {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_read_tokens": 0,
-            "cache_creation_tokens": 0,
-            "messages": 0,
-        }
-    )
-    by_model: dict[str, dict[str, int]] = defaultdict(
-        lambda: {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_read_tokens": 0,
-            "cache_creation_tokens": 0,
-            "messages": 0,
-        }
-    )
-    by_session: dict[str, dict[str, int]] = defaultdict(
-        lambda: {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_read_tokens": 0,
-            "cache_creation_tokens": 0,
-            "messages": 0,
-        }
-    )
-
-    if not projects_dir.exists():
-        logger.info("Claude projects directory not found: %s", projects_dir)
-        return TokenUsageReport(
-            period_days=days,
-            totals=totals,
-            daily={},
-            by_model={},
-            by_session={},
-            estimated_cost=EstimatedCost(opus=0.0, sonnet=0.0),
-        )
-
-    # Find all JSONL files
-    jsonl_files = list(projects_dir.rglob("*.jsonl"))
-    logger.info("Found %d JSONL files to process", len(jsonl_files))
-
-    for jsonl_path in jsonl_files:
-        entries = parse_conversation_file(jsonl_path)
-
-        for entry in entries:
-            ts = _parse_timestamp(entry["timestamp"])
-            if ts is None or ts < cutoff:
-                continue
-
-            # Update totals
-            totals["input_tokens"] += entry["input_tokens"]
-            totals["output_tokens"] += entry["output_tokens"]
-            totals["cache_read_tokens"] += entry["cache_read_input_tokens"]
-            totals["cache_creation_tokens"] += entry["cache_creation_input_tokens"]
-            totals["messages"] += 1
-            sessions.add(entry["session_id"])
-
-            # Update daily breakdown
-            date_key = ts.strftime("%Y-%m-%d")
-            daily[date_key]["input_tokens"] += entry["input_tokens"]
-            daily[date_key]["output_tokens"] += entry["output_tokens"]
-            daily[date_key]["cache_read_tokens"] += entry["cache_read_input_tokens"]
-            daily[date_key]["cache_creation_tokens"] += entry[
-                "cache_creation_input_tokens"
-            ]
-            daily[date_key]["messages"] += 1
-
-            # Update model breakdown
-            model = entry["model"]
-            by_model[model]["input_tokens"] += entry["input_tokens"]
-            by_model[model]["output_tokens"] += entry["output_tokens"]
-            by_model[model]["cache_read_tokens"] += entry["cache_read_input_tokens"]
-            by_model[model]["cache_creation_tokens"] += entry[
-                "cache_creation_input_tokens"
-            ]
-            by_model[model]["messages"] += 1
-
-            # Update session breakdown
-            session = entry["session_id"]
-            by_session[session]["input_tokens"] += entry["input_tokens"]
-            by_session[session]["output_tokens"] += entry["output_tokens"]
-            by_session[session]["cache_read_tokens"] += entry["cache_read_input_tokens"]
-            by_session[session]["cache_creation_tokens"] += entry[
-                "cache_creation_input_tokens"
-            ]
-            by_session[session]["messages"] += 1
-
-    # Add session count to totals
-    totals["sessions"] = len(sessions)
-
-    # Sort daily by date
-    sorted_daily = dict(sorted(daily.items()))
-
-    # Calculate estimated costs
-    cost_opus = _calculate_cost(
-        totals["input_tokens"],
-        totals["output_tokens"],
-        totals["cache_read_tokens"],
-        totals["cache_creation_tokens"],
-        PRICING_OPUS_INPUT,
-        PRICING_OPUS_OUTPUT,
-        PRICING_OPUS_CACHE_READ,
-        PRICING_OPUS_CACHE_CREATION,
-    )
-
-    cost_sonnet = _calculate_cost(
-        totals["input_tokens"],
-        totals["output_tokens"],
-        totals["cache_read_tokens"],
-        totals["cache_creation_tokens"],
-        PRICING_SONNET_INPUT,
-        PRICING_SONNET_OUTPUT,
-        PRICING_SONNET_CACHE_READ,
-        PRICING_SONNET_CACHE_CREATION,
-    )
-
-    return TokenUsageReport(
-        period_days=days,
-        totals=totals,
-        daily=sorted_daily,
-        by_model=dict(by_model),
-        by_session=dict(by_session),
-        estimated_cost=EstimatedCost(opus=round(cost_opus, 2), sonnet=round(cost_sonnet, 2)),
-    )
-
-
 __all__ = [
     "get_claude_projects_dir",
     "parse_conversation_file",
-    "get_token_usage",
+    "_parse_timestamp",
+    "_extract_usage_from_message",
     "UsageEntry",
     "DailyUsage",
     "ModelUsage",
     "EstimatedCost",
     "TokenUsageReport",
-    "PRICING_OPUS_INPUT",
-    "PRICING_OPUS_OUTPUT",
-    "PRICING_OPUS_CACHE_READ",
-    "PRICING_OPUS_CACHE_CREATION",
-    "PRICING_SONNET_INPUT",
-    "PRICING_SONNET_OUTPUT",
-    "PRICING_SONNET_CACHE_READ",
-    "PRICING_SONNET_CACHE_CREATION",
 ]

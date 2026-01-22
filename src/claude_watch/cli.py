@@ -950,6 +950,21 @@ def main() -> None:
             display_forecast(data, history, config)
         return
 
+    # Handle --sync standalone (without --tokens)
+    if args.sync and args.tokens is None and not args.tokens_stats and not args.tokens_status and not args.tokens_reset:
+        from claude_watch.history.persistence import get_token_store
+
+        store = get_token_store()
+        if not args.quiet:
+            print(f"{Colors.DIM}Force syncing token store...{Colors.RESET}")
+        result = store.sync(force=True)
+        if not args.quiet:
+            print(f"{Colors.GREEN}Sync complete.{Colors.RESET}")
+            print(f"  Scanned {result.files_scanned} files")
+            print(f"  Added {result.new_entries:,} new entries")
+            print(f"  Total entries: {result.total_entries:,}")
+        return
+
     # Handle --tokens-status flag
     if args.tokens_status:
         from claude_watch.history.persistence import get_token_store
@@ -993,7 +1008,7 @@ def main() -> None:
     # Handle --tokens-stats flag
     if args.tokens_stats:
         from claude_watch.display.tokens import display_token_stats, display_token_stats_json
-        from claude_watch.history.persistence import get_token_store, sync_and_get_usage
+        from claude_watch.history.persistence import get_token_store, sync_and_get_display_data
 
         # Use all available data (max lookback)
         force_sync = args.sync
@@ -1003,19 +1018,8 @@ def main() -> None:
             if force_sync or store.needs_sync():
                 print(f"{Colors.DIM}Syncing token store...{Colors.RESET}")
 
-        # Get all data from store
-        token_data = sync_and_get_usage(days=9999, force_sync=force_sync)
-
-        # Transform for display
-        display_data = {
-            "period": {"days": token_data["period_days"]},
-            "totals": token_data["totals"],
-            "daily": [
-                {"date": date, **usage}
-                for date, usage in token_data["daily"].items()
-            ],
-            "by_model": token_data["by_model"],
-        }
+        # Get display-ready data from store
+        display_data = sync_and_get_display_data(days=9999, force_sync=force_sync)
 
         if args.json:
             display_token_stats_json(display_data)
@@ -1045,7 +1049,7 @@ def main() -> None:
     # Handle --tokens flag (with persistent store)
     if args.tokens is not None:
         from claude_watch.display.tokens import display_token_usage, display_token_usage_json
-        from claude_watch.history.persistence import get_token_store, sync_and_get_usage
+        from claude_watch.history.persistence import get_token_store, sync_and_get_display_data
 
         days = args.tokens
         force_sync = args.sync
@@ -1060,19 +1064,8 @@ def main() -> None:
             elif needs_sync:
                 print(f"{Colors.DIM}Syncing new conversation logs...{Colors.RESET}")
 
-        # Get usage from persistent store (auto-syncs if needed)
-        token_data = sync_and_get_usage(days=days, force_sync=force_sync)
-
-        # Transform data structure to match display expectations
-        display_data = {
-            "period": {"days": token_data["period_days"]},
-            "totals": token_data["totals"],
-            "daily": [
-                {"date": date, **usage}
-                for date, usage in token_data["daily"].items()
-            ],
-            "by_model": token_data["by_model"],
-        }
+        # Get display-ready data from persistent store (auto-syncs if needed)
+        display_data = sync_and_get_display_data(days=days, force_sync=force_sync)
 
         if args.json:
             display_token_usage_json(display_data)

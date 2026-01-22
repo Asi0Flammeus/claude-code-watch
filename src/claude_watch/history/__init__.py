@@ -14,7 +14,6 @@ from claude_watch.history.storage import (
 )
 from claude_watch.history.tokens import (
     get_claude_projects_dir,
-    get_token_usage,
     parse_conversation_file,
 )
 
@@ -28,5 +27,4 @@ __all__ = [
     # tokens
     "get_claude_projects_dir",
     "parse_conversation_file",
-    "get_token_usage",
 ]

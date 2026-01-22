@@ -20,24 +20,32 @@ from typing import Any, TypedDict
 from claude_watch.history.tokens import (
     EstimatedCost,
     TokenUsageReport,
-    _calculate_cost,
     _parse_timestamp,
     get_claude_projects_dir,
     parse_conversation_file,
-    PRICING_OPUS_CACHE_CREATION,
-    PRICING_OPUS_CACHE_READ,
-    PRICING_OPUS_INPUT,
-    PRICING_OPUS_OUTPUT,
-    PRICING_SONNET_CACHE_CREATION,
-    PRICING_SONNET_CACHE_READ,
-    PRICING_SONNET_INPUT,
-    PRICING_SONNET_OUTPUT,
 )
+from claude_watch.pricing import calculate_cost
 
 logger = logging.getLogger(__name__)
 
+
+def _get_data_dir() -> Path:
+    """Get XDG-compliant data directory.
+
+    Respects XDG_DATA_HOME environment variable if set,
+    otherwise falls back to ~/.local/share/ccw.
+
+    Returns:
+        Path to the ccw data directory.
+    """
+    xdg_data = os.environ.get("XDG_DATA_HOME")
+    if xdg_data:
+        return Path(xdg_data) / "ccw"
+    return Path.home() / ".local" / "share" / "ccw"
+
+
 # XDG-compliant storage location
-STORE_DIR = Path.home() / ".local" / "share" / "ccw"
+STORE_DIR = _get_data_dir()
 STORE_FILE = STORE_DIR / "token-usage.json"
 STORE_VERSION = 1
 
@@ -89,10 +97,11 @@ def _hash_entry(
     input_tokens: int,
     output_tokens: int,
 ) -> str:
-    """Generate unique hash for an entry.
+    """Generate unique hash for entry deduplication.
 
-    Uses session_id + timestamp + token counts to create a unique identifier.
-    This ensures the same message won't be duplicated on re-scan.
+    Uses SHA-256 truncated to 16 hex chars (64 bits).
+    Birthday paradox: 50% collision probability at ~4B entries.
+    Acceptable: timestamps provide uniqueness, collisions only skip duplicates.
 
     Args:
         session_id: Session identifier.
@@ -388,14 +397,15 @@ class TokenStore:
         """
         entries = self._data["entries"]
 
-        # Filter by date
+        # Filter by date (parse timestamp once to avoid redundant parsing)
         if days is not None:
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-            entries = [
-                e for e in entries
-                if _parse_timestamp(e["timestamp"])
-                and _parse_timestamp(e["timestamp"]) >= cutoff
-            ]
+            filtered = []
+            for e in entries:
+                ts = _parse_timestamp(e["timestamp"])
+                if ts and ts >= cutoff:
+                    filtered.append(e)
+            entries = filtered
 
         # Filter by project
         if project is not None:
@@ -504,27 +514,21 @@ class TokenStore:
         # Sort daily by date
         sorted_daily = dict(sorted(daily.items()))
 
-        # Calculate estimated costs
-        cost_opus = _calculate_cost(
+        # Calculate estimated costs using centralized pricing
+        cost_opus = calculate_cost(
             totals["input_tokens"],
             totals["output_tokens"],
             totals["cache_read_tokens"],
             totals["cache_creation_tokens"],
-            PRICING_OPUS_INPUT,
-            PRICING_OPUS_OUTPUT,
-            PRICING_OPUS_CACHE_READ,
-            PRICING_OPUS_CACHE_CREATION,
+            "claude-opus-4-5-20251101",
         )
 
-        cost_sonnet = _calculate_cost(
+        cost_sonnet = calculate_cost(
             totals["input_tokens"],
             totals["output_tokens"],
             totals["cache_read_tokens"],
             totals["cache_creation_tokens"],
-            PRICING_SONNET_INPUT,
-            PRICING_SONNET_OUTPUT,
-            PRICING_SONNET_CACHE_READ,
-            PRICING_SONNET_CACHE_CREATION,
+            "claude-sonnet-4-5-20250929",
         )
 
         return TokenUsageReport(
@@ -538,6 +542,31 @@ class TokenStore:
                 sonnet=round(cost_sonnet, 2),
             ),
         )
+
+    def get_stats_for_display(self, days: int = 7) -> dict:
+        """Get stats transformed for display module consumption.
+
+        Converts the internal TokenUsageReport format to the display-friendly
+        format expected by display/tokens.py. This ensures data transformation
+        happens once at the source rather than in each consumer.
+
+        Args:
+            days: Number of days to include.
+
+        Returns:
+            Dict with keys: period, totals, daily (list), by_model, estimated_cost.
+        """
+        stats = self.get_stats(days)
+        return {
+            "period": {"days": stats["period_days"]},
+            "totals": stats["totals"],
+            "daily": [
+                {"date": date, **usage}
+                for date, usage in stats["daily"].items()
+            ],
+            "by_model": stats["by_model"],
+            "estimated_cost": stats["estimated_cost"],
+        }
 
     def get_status(self) -> dict[str, Any]:
         """Get store metadata and status.
@@ -632,12 +661,35 @@ def sync_and_get_usage(days: int = 7, force_sync: bool = False) -> TokenUsageRep
     return store.get_stats(days=days)
 
 
+def sync_and_get_display_data(days: int = 7, force_sync: bool = False) -> dict:
+    """Sync token store and return data in display-ready format.
+
+    Same as sync_and_get_usage but returns data transformed for
+    the display module (daily as list, period as dict).
+
+    Args:
+        days: Number of days to include in the report.
+        force_sync: If True, rescan all files regardless of mtime.
+
+    Returns:
+        Dict ready for display/tokens.py functions.
+    """
+    store = get_token_store()
+
+    # Auto-sync if needed
+    if force_sync or store.needs_sync():
+        store.sync(force=force_sync)
+
+    return store.get_stats_for_display(days=days)
+
+
 __all__ = [
     "TokenStore",
     "StoredEntry",
     "SyncResult",
     "get_token_store",
     "sync_and_get_usage",
+    "sync_and_get_display_data",
     "STORE_FILE",
     "STORE_DIR",
 ]

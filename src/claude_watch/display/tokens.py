@@ -42,10 +42,9 @@ Expected data structure from token parser:
 """
 
 import json
-from typing import Optional
 
-from claude_watch.display.analytics import API_PRICING
 from claude_watch.display.colors import Colors
+from claude_watch.pricing import calculate_cost
 
 
 def _format_number(n: int) -> str:
@@ -58,34 +57,6 @@ def _format_number(n: int) -> str:
         Formatted string with commas.
     """
     return f"{n:,}"
-
-
-def _calculate_cost(
-    input_tokens: int,
-    output_tokens: int,
-    cache_read_tokens: int,
-    model: str = "default",
-    pricing: Optional[dict] = None,
-) -> float:
-    """Calculate API cost for given token counts.
-
-    Args:
-        input_tokens: Number of input tokens.
-        output_tokens: Number of output tokens.
-        cache_read_tokens: Number of cache read tokens.
-        model: Model identifier for pricing lookup.
-        pricing: Optional custom pricing dict (defaults to API_PRICING).
-
-    Returns:
-        Total cost in dollars.
-    """
-    if pricing is None:
-        pricing = API_PRICING
-    model_pricing = pricing.get(model, pricing.get("default", (3.00, 15.00, 0.30)))
-    input_cost = (input_tokens / 1_000_000) * model_pricing[0]
-    output_cost = (output_tokens / 1_000_000) * model_pricing[1]
-    cache_cost = (cache_read_tokens / 1_000_000) * model_pricing[2]
-    return input_cost + output_cost + cache_cost
 
 
 def _get_model_display_name(model_id: str) -> str:
@@ -206,39 +177,23 @@ def display_token_usage(data: dict) -> None:
     print(f"{Colors.BOLD}{Colors.WHITE}Estimated API Cost (if pay-per-use){Colors.RESET}")
     print()
 
-    # Calculate cost at different pricing tiers
-    opus_pricing = API_PRICING.get("claude-opus-4-5-20251101", (15.00, 75.00, 1.50))
-    sonnet_pricing = API_PRICING.get("claude-sonnet-4-5-20250929", (3.00, 15.00, 0.30))
-    haiku_pricing = API_PRICING.get("claude-haiku-4-5-20251101", (1.00, 5.00, 0.10))
-
     # If we have model breakdown, calculate actual cost per model
     actual_cost = 0.0
     if by_model:
         for model_id, model_data in by_model.items():
-            actual_cost += _calculate_cost(
+            actual_cost += calculate_cost(
                 model_data.get("input_tokens", 0),
                 model_data.get("output_tokens", 0),
                 model_data.get("cache_read_tokens", 0),
+                model_data.get("cache_creation_tokens", 0),
                 model_id,
             )
         print(f"  {'Actual model mix:':<24} {Colors.BOLD}${actual_cost:>10,.2f}{Colors.RESET}")
 
     # Calculate hypothetical costs at each pricing tier
-    opus_cost = (
-        (input_tok / 1_000_000) * opus_pricing[0]
-        + (output_tok / 1_000_000) * opus_pricing[1]
-        + (cache_read_tok / 1_000_000) * opus_pricing[2]
-    )
-    sonnet_cost = (
-        (input_tok / 1_000_000) * sonnet_pricing[0]
-        + (output_tok / 1_000_000) * sonnet_pricing[1]
-        + (cache_read_tok / 1_000_000) * sonnet_pricing[2]
-    )
-    haiku_cost = (
-        (input_tok / 1_000_000) * haiku_pricing[0]
-        + (output_tok / 1_000_000) * haiku_pricing[1]
-        + (cache_read_tok / 1_000_000) * haiku_pricing[2]
-    )
+    opus_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-opus-4-5-20251101")
+    sonnet_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-sonnet-4-5-20250929")
+    haiku_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-haiku-4-5-20251101")
 
     print(f"  {'At Opus pricing:':<24} {Colors.MAGENTA}${opus_cost:>10,.2f}{Colors.RESET}")
     print(f"  {'At Sonnet pricing:':<24} {Colors.CYAN}${sonnet_cost:>10,.2f}{Colors.RESET}")
@@ -299,28 +254,18 @@ def display_token_usage_json(data: dict) -> None:
     cache_read_tok = totals.get("cache_read_tokens", 0)
 
     # Calculate costs
-    opus_pricing = API_PRICING.get("claude-opus-4-5-20251101", (15.00, 75.00, 1.50))
-    sonnet_pricing = API_PRICING.get("claude-sonnet-4-5-20250929", (3.00, 15.00, 0.30))
-
-    opus_cost = (
-        (input_tok / 1_000_000) * opus_pricing[0]
-        + (output_tok / 1_000_000) * opus_pricing[1]
-        + (cache_read_tok / 1_000_000) * opus_pricing[2]
-    )
-    sonnet_cost = (
-        (input_tok / 1_000_000) * sonnet_pricing[0]
-        + (output_tok / 1_000_000) * sonnet_pricing[1]
-        + (cache_read_tok / 1_000_000) * sonnet_pricing[2]
-    )
+    opus_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-opus-4-5-20251101")
+    sonnet_cost = calculate_cost(input_tok, output_tok, cache_read_tok, 0, "claude-sonnet-4-5-20250929")
 
     # Calculate actual cost if model breakdown available
     actual_cost = 0.0
     if by_model:
         for model_id, model_data in by_model.items():
-            actual_cost += _calculate_cost(
+            actual_cost += calculate_cost(
                 model_data.get("input_tokens", 0),
                 model_data.get("output_tokens", 0),
                 model_data.get("cache_read_tokens", 0),
+                model_data.get("cache_creation_tokens", 0),
                 model_id,
             )
 
