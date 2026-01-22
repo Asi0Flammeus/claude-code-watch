@@ -12,7 +12,6 @@ from typing import Optional
 
 from claude_watch.display.colors import Colors
 from claude_watch.display.progress import format_percentage, make_progress_bar
-from claude_watch.display.usage import display_usage
 from claude_watch.utils.time import format_relative_time
 
 

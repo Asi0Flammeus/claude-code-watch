@@ -18,7 +18,6 @@ import claude_watch.api.cache as cache_module
 from claude_watch.api.cache import get_stale_cache, load_cache, save_cache
 from claude_watch.api.client import fetch_usage_cached
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test load_cache()
 # ═══════════════════════════════════════════════════════════════════════════════

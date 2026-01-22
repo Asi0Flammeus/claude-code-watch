@@ -2,8 +2,8 @@
 
 import json
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -236,7 +236,7 @@ def run_export(
                 f"{Colors.GREEN}Exported to {output_file}{Colors.RESET}",
                 file=sys.stderr,
             )
-        except IOError as e:
+        except OSError as e:
             print(
                 f"{Colors.RED}Error writing to {output_file}: {e}{Colors.RESET}",
                 file=sys.stderr,

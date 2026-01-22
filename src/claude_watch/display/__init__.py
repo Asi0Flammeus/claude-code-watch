@@ -25,14 +25,14 @@ from claude_watch.display.analytics import (
 from claude_watch.display.colors import Colors, init_colors, supports_color
 from claude_watch.display.progress import format_percentage, get_usage_color, make_progress_bar
 from claude_watch.display.spinner import Spinner
-from claude_watch.display.usage import display_usage, print_usage_row
 from claude_watch.display.tmux import format_tmux, format_tmux_minimal, get_tmux_color
+from claude_watch.display.usage import display_usage, print_usage_row
 from claude_watch.display.watch import (
     clear_screen,
     format_duration,
-    run_watch_mode,
     print_watch_header,
     print_watch_summary,
+    run_watch_mode,
 )
 
 __all__ = [

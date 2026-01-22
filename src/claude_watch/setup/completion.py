@@ -8,7 +8,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 from claude_watch.display.colors import Colors
 

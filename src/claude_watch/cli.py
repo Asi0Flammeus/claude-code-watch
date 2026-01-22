@@ -642,15 +642,15 @@ def main() -> None:
 
             # Type conversion based on expected type
             expected_type = type(DEFAULT_CONFIG[key])
-            if expected_type == bool:
+            if expected_type is bool:
                 converted = value.lower() in ("true", "1", "yes", "on")
-            elif expected_type == int:
+            elif expected_type is int:
                 try:
                     converted = int(value)
                 except ValueError:
                     print(f"{Colors.RED}Error: '{key}' must be an integer{Colors.RESET}")
                     sys.exit(1)
-            elif expected_type == float:
+            elif expected_type is float:
                 try:
                     converted = float(value)
                 except ValueError:

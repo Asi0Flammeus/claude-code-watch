@@ -6,10 +6,12 @@ used across all cost calculation functions in the codebase.
 
 from typing import NamedTuple
 
-ModelPricing = NamedTuple(
-    "ModelPricing",
-    [("input", float), ("output", float), ("cache_read", float), ("cache_creation", float)],
-)
+
+class ModelPricing(NamedTuple):
+    input: float
+    output: float
+    cache_read: float
+    cache_creation: float
 
 # Pricing per 1M tokens (as of 2025)
 # Format: (input, output, cache_read, cache_creation)

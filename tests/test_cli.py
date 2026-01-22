@@ -263,6 +263,7 @@ class TestCLIHistory:
     def test_load_empty_history(self, tmp_path):
         """Test loading empty history."""
         from unittest.mock import patch
+
         import claude_watch.history.storage as storage_module
 
         history_file = tmp_path / "history.json"
@@ -276,6 +277,7 @@ class TestCLIHistory:
     def test_load_history_with_data(self, tmp_path):
         """Test loading history with data."""
         from unittest.mock import patch
+
         import claude_watch.history.storage as storage_module
 
         history_file = tmp_path / "history.json"

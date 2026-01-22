@@ -22,7 +22,6 @@ from claude_watch.api.client import fetch_usage
 from claude_watch.config.credentials import get_access_token, get_credentials
 from claude_watch.history.storage import load_history, record_usage, save_history
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test fetch_usage()
 # ═══════════════════════════════════════════════════════════════════════════════

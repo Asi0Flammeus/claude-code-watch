@@ -1,15 +1,16 @@
 """Tests for watch mode display functions."""
 
-import pytest
-from unittest.mock import patch
 import platform
+from unittest.mock import patch
+
+import pytest
 
 from claude_watch.display.watch import (
-    clear_screen,
-    format_duration,
-    format_countdown,
     calculate_delta,
+    clear_screen,
+    format_countdown,
     format_delta,
+    format_duration,
     print_watch_header,
     print_watch_summary,
 )

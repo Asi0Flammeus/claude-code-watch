@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 
 from claude_watch.history.persistence import (
+    TokenStore,
     _get_data_dir,
     _hash_entry,
-    TokenStore,
 )
 
 

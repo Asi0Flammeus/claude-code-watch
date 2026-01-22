@@ -89,7 +89,7 @@ def load_claude_settings() -> dict:
     try:
         with open(CLAUDE_SETTINGS_PATH) as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         return {}
 
 

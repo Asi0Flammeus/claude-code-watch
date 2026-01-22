@@ -7,7 +7,6 @@ import http.server
 import socketserver
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Callable, Optional
 
 # Metric names following Prometheus conventions

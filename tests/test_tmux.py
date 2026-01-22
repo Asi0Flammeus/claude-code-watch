@@ -1,7 +1,8 @@
 """Tests for tmux status bar output formatting."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
-from datetime import datetime, timezone, timedelta
 
 from claude_watch.display.tmux import (
     format_tmux,
