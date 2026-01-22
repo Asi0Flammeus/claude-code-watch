@@ -48,6 +48,11 @@ Examples:
   claude-watch --audit      Enable audit logging for operations
   claude-watch --show-audit Show recent audit log entries
   claude-watch --health-check Run system diagnostics
+  claude-watch --tokens     Show token usage (last 7 days)
+  claude-watch --tokens 30  Show token usage (last 30 days)
+  claude-watch --tokens-stats   Show usage statistics (periods, avg, std)
+  claude-watch --tokens-status  Show token store metadata
+  claude-watch --tokens-reset   Rebuild token store from scratch
   ccw                       Short alias (add to shell config)
 
 Setup:
@@ -112,8 +117,8 @@ Setup:
         "-U",
         nargs="?",
         const="update",
-        metavar="check",
-        help="Check for and install updates. Use --update check to only check without installing.",
+        metavar="MODE",
+        help="Check for and install updates. Modes: check (check only), force (reinstall even if current).",
     )
     parser.add_argument(
         "--prompt",
@@ -212,6 +217,26 @@ Setup:
         type=int,
         metavar="DAYS",
         help="Show Claude Code token usage from conversation logs. DAYS: lookback period (default: 7).",
+    )
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="Force rescan of JSONL files to update token store (use with --tokens).",
+    )
+    parser.add_argument(
+        "--tokens-status",
+        action="store_true",
+        help="Show token store metadata (entry count, date range, file size).",
+    )
+    parser.add_argument(
+        "--tokens-reset",
+        action="store_true",
+        help="Clear token store and rebuild from current JSONL files.",
+    )
+    parser.add_argument(
+        "--tokens-stats",
+        action="store_true",
+        help="Show token usage statistics with period breakdown and averages.",
     )
 
     # Notification arguments
@@ -419,7 +444,8 @@ def main() -> None:
     # Handle --update flag
     if args.update is not None:
         check_only = args.update == "check"
-        exit_code = run_update(__version__, check_only=check_only)
+        force = args.update == "force"
+        exit_code = run_update(__version__, check_only=check_only, force=force)
         sys.exit(exit_code)
 
     # Load configuration
@@ -924,16 +950,118 @@ def main() -> None:
             display_forecast(data, history, config)
         return
 
-    # Handle --tokens flag
+    # Handle --tokens-status flag
+    if args.tokens_status:
+        from claude_watch.history.persistence import get_token_store
+
+        store = get_token_store()
+        status = store.get_status()
+
+        print()
+        print(f"{Colors.BOLD}{Colors.CYAN}Token Store Status{Colors.RESET}")
+        print()
+        print(f"  Store path:       {status['store_path']}")
+        print(f"  Store version:    {status['version']}")
+        print(f"  Total entries:    {status['total_entries']:,}")
+        print(f"  Scanned files:    {status['scanned_files']}")
+
+        if status['file_size_bytes'] > 0:
+            size_kb = status['file_size_bytes'] / 1024
+            if size_kb > 1024:
+                print(f"  File size:        {size_kb / 1024:.1f} MB")
+            else:
+                print(f"  File size:        {size_kb:.1f} KB")
+
+        if status['last_scan']:
+            print(f"  Last scan:        {status['last_scan'][:19]}")
+
+        if status['date_range']['oldest']:
+            print()
+            print(f"  Date range:       {status['date_range']['oldest'][:10]} to {status['date_range']['newest'][:10]}")
+
+        if status['by_project']:
+            print()
+            print(f"  {Colors.DIM}Entries by project:{Colors.RESET}")
+            for proj, count in sorted(status['by_project'].items(), key=lambda x: -x[1])[:10]:
+                print(f"    {proj[:40]:<40} {count:>6}")
+            if len(status['by_project']) > 10:
+                print(f"    {Colors.DIM}... and {len(status['by_project']) - 10} more{Colors.RESET}")
+
+        print()
+        return
+
+    # Handle --tokens-stats flag
+    if args.tokens_stats:
+        from claude_watch.display.tokens import display_token_stats, display_token_stats_json
+        from claude_watch.history.persistence import get_token_store, sync_and_get_usage
+
+        # Use all available data (max lookback)
+        force_sync = args.sync
+
+        if not args.quiet:
+            store = get_token_store()
+            if force_sync or store.needs_sync():
+                print(f"{Colors.DIM}Syncing token store...{Colors.RESET}")
+
+        # Get all data from store
+        token_data = sync_and_get_usage(days=9999, force_sync=force_sync)
+
+        # Transform for display
+        display_data = {
+            "period": {"days": token_data["period_days"]},
+            "totals": token_data["totals"],
+            "daily": [
+                {"date": date, **usage}
+                for date, usage in token_data["daily"].items()
+            ],
+            "by_model": token_data["by_model"],
+        }
+
+        if args.json:
+            display_token_stats_json(display_data)
+        else:
+            display_token_stats(display_data)
+        return
+
+    # Handle --tokens-reset flag
+    if args.tokens_reset:
+        from claude_watch.history.persistence import get_token_store
+
+        store = get_token_store()
+
+        if not args.quiet:
+            print(f"{Colors.YELLOW}Resetting token store...{Colors.RESET}")
+
+        store.reset()
+        result = store.sync(force=True)
+
+        if not args.quiet:
+            print(f"{Colors.GREEN}Token store rebuilt.{Colors.RESET}")
+            print(f"  Scanned {result.files_scanned} files")
+            print(f"  Added {result.new_entries:,} entries")
+
+        return
+
+    # Handle --tokens flag (with persistent store)
     if args.tokens is not None:
         from claude_watch.display.tokens import display_token_usage, display_token_usage_json
-        from claude_watch.history.tokens import get_token_usage
+        from claude_watch.history.persistence import get_token_store, sync_and_get_usage
 
         days = args.tokens
-        if not args.quiet:
-            print(f"{Colors.DIM}Scanning Claude Code conversation logs...{Colors.RESET}")
+        force_sync = args.sync
 
-        token_data = get_token_usage(days=days)
+        # Show sync status
+        if not args.quiet:
+            store = get_token_store()
+            needs_sync = store.needs_sync()
+
+            if force_sync:
+                print(f"{Colors.DIM}Force syncing token store...{Colors.RESET}")
+            elif needs_sync:
+                print(f"{Colors.DIM}Syncing new conversation logs...{Colors.RESET}")
+
+        # Get usage from persistent store (auto-syncs if needed)
+        token_data = sync_and_get_usage(days=days, force_sync=force_sync)
 
         # Transform data structure to match display expectations
         display_data = {
